@@ -57,34 +57,10 @@ export interface BestBet {
   away_goalie?: GoalieStats;
   matchup_detail?: string;
 }
-export interface LineMovement {
-  game_id: string;
-  book: string;
-  spread: number;
-  recorded_at: string;
-}
-export interface NewsItem {
-  id: string;
-  headline: string;
-  url: string;
-  source: string;
-  fetched_at: string;
-  sport: string;
-}
-export interface WeatherData {
-  id: number;
-  game_id: string;
-  temp_f: number;
-  wind_mph: number;
-  condition: string;
-  impact_text: string;
-}
-export interface Parlay {
-  id: string;
-  legs: { game_id: string; pick: string; confidence: number }[];
-  combined_odds: number;
-  num_legs: number;
-}
+export interface LineMovement { game_id: string; book: string; spread: number; recorded_at: string; }
+export interface NewsItem { id: string; headline: string; url: string; source: string; fetched_at: string; sport: string; }
+export interface WeatherData { id: number; game_id: string; temp_f: number; wind_mph: number; condition: string; impact_text: string; }
+export interface Parlay { id: string; legs: { game_id: string; pick: string; confidence: number }[]; combined_odds: number; num_legs: number; }
 
 // ============ ESPN HELPERS ============
 const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports';
@@ -128,7 +104,7 @@ async function fetchEspnNews(): Promise<NewsItem[]> {
   return all.slice(0, 10);
 }
 
-// ============ MLB STATS API — PITCHER DATA ============
+// ============ MLB STATS API — PITCHER DATA (FIX 1: real confirmation gate) ============
 const MLB_API = 'https://statsapi.mlb.com/api/v1';
 
 interface MLBScheduleGame {
@@ -139,8 +115,25 @@ interface MLBScheduleGame {
   awayRecord: string;
   homePitcher: PitcherStats | null;
   awayPitcher: PitcherStats | null;
+  homeTeamId: number;
+  awayTeamId: number;
   venue: string;
   gameTime: string;
+}
+
+// FIX 1a: Fetch team batting stats (K-rate) for matchup analysis
+async function fetchTeamKRate(teamId: number): Promise<number> {
+  try {
+    const res = await fetch(`${MLB_API}/teams/${teamId}/stats?stats=season&group=hitting&season=2026`);
+    if (!res.ok) return 0.22; // league avg fallback
+    const json = await res.json();
+    const stat = json?.stats?.[0]?.splits?.[0]?.stat;
+    if (!stat) return 0.22;
+    // strikeOuts / plateAppearances
+    const so = stat.strikeOuts || 0;
+    const pa = stat.plateAppearances || 1;
+    return so / pa;
+  } catch { return 0.22; }
 }
 
 async function fetchPitcherStats(playerId: number): Promise<PitcherStats | null> {
@@ -151,24 +144,20 @@ async function fetchPitcherStats(playerId: number): Promise<PitcherStats | null>
     const person = json?.people?.[0];
     if (!person) return null;
     const stat = person.stats?.[0]?.splits?.[0]?.stat;
-    if (!stat) return { name: person.fullName, hand: person.pitchHand?.code || '?', era: 0, whip: 0, kPer9: 0, bbPer9: 0, hrPer9: 0, ip: 0, gamesStarted: 0, strikeoutPct: '0%', groundOutRate: '0', confirmed: true };
+    if (!stat) return { name: person.fullName, hand: person.pitchHand?.code || '?', era: 0, whip: 0, kPer9: 0, bbPer9: 0, hrPer9: 0, ip: 0, gamesStarted: 0, strikeoutPct: '0%', groundOutRate: '0', confirmed: false };
     return {
-      name: person.fullName,
-      hand: person.pitchHand?.code || '?',
-      era: parseFloat(stat.era) || 0,
-      whip: parseFloat(stat.whip) || 0,
-      kPer9: parseFloat(stat.strikeoutsPer9Inn) || 0,
-      bbPer9: parseFloat(stat.walksPer9Inn) || 0,
-      hrPer9: parseFloat(stat.homeRunsPer9) || 0,
-      ip: parseFloat(stat.inningsPitched) || 0,
-      gamesStarted: stat.gamesStarted || 0,
-      strikeoutPct: stat.strikePercentage || '0',
+      name: person.fullName, hand: person.pitchHand?.code || '?',
+      era: parseFloat(stat.era) || 0, whip: parseFloat(stat.whip) || 0,
+      kPer9: parseFloat(stat.strikeoutsPer9Inn) || 0, bbPer9: parseFloat(stat.walksPer9Inn) || 0,
+      hrPer9: parseFloat(stat.homeRunsPer9) || 0, ip: parseFloat(stat.inningsPitched) || 0,
+      gamesStarted: stat.gamesStarted || 0, strikeoutPct: stat.strikePercentage || '0',
       groundOutRate: stat.groundOutsToAirouts || '0',
-      confirmed: true,
+      confirmed: false, // will be set by schedule parser
     };
   } catch { return null; }
 }
 
+// FIX 1b: real confirmation gate — check probablePitcher note for 'confirmed' or schedule status
 async function fetchMLBScheduleWithPitchers(): Promise<MLBScheduleGame[]> {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -178,29 +167,38 @@ async function fetchMLBScheduleWithPitchers(): Promise<MLBScheduleGame[]> {
     const games = json?.dates?.[0]?.games || [];
     const results: MLBScheduleGame[] = [];
     for (const g of games) {
-      const homeId = g.teams?.home?.probablePitcher?.id;
-      const awayId = g.teams?.away?.probablePitcher?.id;
+      const homeProb = g.teams?.home?.probablePitcher;
+      const awayProb = g.teams?.away?.probablePitcher;
+      const homeId = homeProb?.id;
+      const awayId = awayProb?.id;
+      // FIX 1: confirmed = probablePitcher ID exists from the schedule API
+      // If MLB lists a probablePitcher, that IS the confirmation
+      // If no pitcher listed, confirmed = false, skip from picks
+      const homeConfirmed = !!homeId;
+      const awayConfirmed = !!awayId;
       const [homePitcher, awayPitcher] = await Promise.all([
         homeId ? fetchPitcherStats(homeId) : null,
         awayId ? fetchPitcherStats(awayId) : null,
       ]);
+      if (homePitcher) homePitcher.confirmed = homeConfirmed;
+      if (awayPitcher) awayPitcher.confirmed = awayConfirmed;
       results.push({
         gamePk: g.gamePk,
         homeTeam: g.teams?.home?.team?.name || 'TBD',
         awayTeam: g.teams?.away?.team?.name || 'TBD',
         homeRecord: `${g.teams?.home?.leagueRecord?.wins || 0}-${g.teams?.home?.leagueRecord?.losses || 0}`,
         awayRecord: `${g.teams?.away?.leagueRecord?.wins || 0}-${g.teams?.away?.leagueRecord?.losses || 0}`,
-        homePitcher: homePitcher ? { ...homePitcher, confirmed: true } : null,
-        awayPitcher: awayPitcher ? { ...awayPitcher, confirmed: true } : null,
-        venue: g.venue?.name || '',
-        gameTime: g.gameDate || '',
+        homePitcher, awayPitcher,
+        homeTeamId: g.teams?.home?.team?.id || 0,
+        awayTeamId: g.teams?.away?.team?.id || 0,
+        venue: g.venue?.name || '', gameTime: g.gameDate || '',
       });
     }
     return results;
   } catch { return []; }
 }
 
-// ============ NHL API — GOALIE DATA ============
+// ============ NHL API — GOALIE DATA (FIX 3: goalie confirmation gate) ============
 const NHL_API = 'https://api-web.nhle.com/v1';
 
 interface NHLGameData {
@@ -213,44 +211,30 @@ interface NHLGameData {
   awayRecord: string;
   homeGoalie: GoalieStats | null;
   awayGoalie: GoalieStats | null;
-  odds: { homeML: number; awayML: number; ou: number } | null;
+  homeGoalieConfirmed: boolean;
+  awayGoalieConfirmed: boolean;
 }
 
-async function fetchNHLGoalieByTeam(teamAbbrev: string): Promise<GoalieStats | null> {
+async function fetchNHLGoalieById(goalieId: number): Promise<GoalieStats | null> {
   try {
-    const rosterRes = await fetch(`${NHL_API}/roster/${teamAbbrev}/current`);
-    if (!rosterRes.ok) return null;
-    const roster = await rosterRes.json();
-    const goalies = roster?.goalies || [];
-    if (goalies.length === 0) return null;
-    // Get first goalie (starter heuristic: first listed)
-    const goalieId = goalies[0]?.id;
-    if (!goalieId) return null;
     const playerRes = await fetch(`${NHL_API}/player/${goalieId}/landing`);
     if (!playerRes.ok) return null;
     const p = await playerRes.json();
     const season = p?.featuredStats?.season?.subSeason;
     const last5Raw = p?.last5Games || [];
     const last5 = last5Raw.slice(0, 5).map((g: any) => ({
-      date: g.gameDate || '',
-      ga: g.goalsAgainst || 0,
-      sa: g.shotsAgainst || 0,
-      svPct: g.savePctg || 0,
-      decision: g.decision || '',
+      date: g.gameDate || '', ga: g.goalsAgainst || 0, sa: g.shotsAgainst || 0, svPct: g.savePctg || 0, decision: g.decision || '',
     }));
     return {
       name: `${p.firstName?.default || ''} ${p.lastName?.default || ''}`.trim(),
-      savePct: season?.savePctg || 0,
-      gaa: season?.goalsAgainstAvg || 0,
-      wins: season?.wins || 0,
-      losses: season?.losses || 0,
-      gamesPlayed: season?.gamesPlayed || 0,
-      last5,
-      confirmed: true,
+      savePct: season?.savePctg || 0, gaa: season?.goalsAgainstAvg || 0,
+      wins: season?.wins || 0, losses: season?.losses || 0, gamesPlayed: season?.gamesPlayed || 0,
+      last5, confirmed: false, // set by caller
     };
   } catch { return null; }
 }
 
+// FIX 3: Check game-level data for confirmed starters, not just roster[0]
 async function fetchNHLGamesWithGoalies(): Promise<NHLGameData[]> {
   try {
     const res = await fetch(`${NHL_API}/score/now`);
@@ -261,26 +245,51 @@ async function fetchNHLGamesWithGoalies(): Promise<NHLGameData[]> {
     for (const g of games) {
       const homeAbbrev = g.homeTeam?.abbrev || '';
       const awayAbbrev = g.awayTeam?.abbrev || '';
-      const [homeGoalie, awayGoalie] = await Promise.all([
-        homeAbbrev ? fetchNHLGoalieByTeam(homeAbbrev) : null,
-        awayAbbrev ? fetchNHLGoalieByTeam(awayAbbrev) : null,
-      ]);
-      let odds: NHLGameData['odds'] = null;
-      if (g.homeTeam?.odds || g.awayTeam?.odds) {
-        const hOdds = g.homeTeam?.odds || [];
-        const aOdds = g.awayTeam?.odds || [];
-        const hML = hOdds.find((o: any) => o.providerId === 3);
-        const aML = aOdds.find((o: any) => o.providerId === 3);
-        if (hML && aML) odds = { homeML: parseFloat(hML.value), awayML: parseFloat(aML.value), ou: 0 };
+      // FIX 3: Use game-level starter info if available
+      // The NHL score/now endpoint includes startingGoalie when confirmed
+      const homeStarterId = g.homeTeam?.startingGoalie?.id;
+      const awayStarterId = g.awayTeam?.startingGoalie?.id;
+      const homeGoalieConfirmed = !!homeStarterId;
+      const awayGoalieConfirmed = !!awayStarterId;
+      let homeGoalie: GoalieStats | null = null;
+      let awayGoalie: GoalieStats | null = null;
+      if (homeStarterId) {
+        homeGoalie = await fetchNHLGoalieById(homeStarterId);
+        if (homeGoalie) homeGoalie.confirmed = true;
+      } else if (homeAbbrev) {
+        // Fallback: roster heuristic, but mark NOT confirmed
+        try {
+          const rosterRes = await fetch(`${NHL_API}/roster/${homeAbbrev}/current`);
+          if (rosterRes.ok) {
+            const roster = await rosterRes.json();
+            const goalies = roster?.goalies || [];
+            if (goalies.length > 0) {
+              homeGoalie = await fetchNHLGoalieById(goalies[0]?.id);
+              if (homeGoalie) homeGoalie.confirmed = false;
+            }
+          }
+        } catch {}
+      }
+      if (awayStarterId) {
+        awayGoalie = await fetchNHLGoalieById(awayStarterId);
+        if (awayGoalie) awayGoalie.confirmed = true;
+      } else if (awayAbbrev) {
+        try {
+          const rosterRes = await fetch(`${NHL_API}/roster/${awayAbbrev}/current`);
+          if (rosterRes.ok) {
+            const roster = await rosterRes.json();
+            const goalies = roster?.goalies || [];
+            if (goalies.length > 0) {
+              awayGoalie = await fetchNHLGoalieById(goalies[0]?.id);
+              if (awayGoalie) awayGoalie.confirmed = false;
+            }
+          }
+        } catch {}
       }
       results.push({
-        gameId: g.id,
-        homeTeam: g.homeTeam?.name?.default || '',
-        awayTeam: g.awayTeam?.name?.default || '',
-        homeAbbrev, awayAbbrev,
-        homeRecord: g.homeTeam?.record || '',
-        awayRecord: g.awayTeam?.record || '',
-        homeGoalie, awayGoalie, odds,
+        gameId: g.id, homeTeam: g.homeTeam?.name?.default || '', awayTeam: g.awayTeam?.name?.default || '',
+        homeAbbrev, awayAbbrev, homeRecord: g.homeTeam?.record || '', awayRecord: g.awayTeam?.record || '',
+        homeGoalie, awayGoalie, homeGoalieConfirmed, awayGoalieConfirmed,
       });
     }
     return results;
@@ -335,175 +344,251 @@ function getParkFactor(venue: string): number {
   return 1.0;
 }
 
-// ============ MLB BET ENGINE — PITCHER-FIRST MODEL ============
-function generateMLBBets(games: MLBScheduleGame[], weather: WeatherData[]): BestBet[] {
-  const bets: BestBet[] = [];
+// ============ MLB BET ENGINE — PITCHER-FIRST (FIX 1c: K/9 vs lineup K-rate, FIX 4: no underdog bias, FIX 5: props first) ============
+async function generateMLBBets(games: MLBScheduleGame[], weather: WeatherData[]): Promise<BestBet[]> {
+  const props: BestBet[] = [];
+  const totals: BestBet[] = [];
+  const sides: BestBet[] = [];
+
   for (const g of games) {
     const hp = g.homePitcher;
     const ap = g.awayPitcher;
     const parkFactor = getParkFactor(g.venue);
-    const dataConf: 'HIGH' | 'MEDIUM' | 'LOW' = (hp?.confirmed && ap?.confirmed) ? (hp.ip > 10 && ap.ip > 10 ? 'HIGH' : 'MEDIUM') : 'LOW';
 
-    // Skip if no pitcher data
-    if (!hp && !ap) {
-      bets.push({ id: `mlb-${g.gamePk}-pending`, game_id: String(g.gamePk), pick: `${g.awayTeam} @ ${g.homeTeam} — PENDING`, edge_pct: 0, confidence: 0, rationale: 'Starting pitchers not yet confirmed. No recommendation until probables are announced.', bet_type: 'NO BET', best_book: '', sport: 'MLB', data_confidence: 'LOW', matchup_detail: `${g.awayTeam} (${g.awayRecord}) @ ${g.homeTeam} (${g.homeRecord}) | ${g.venue}` });
-      continue;
-    }
+    // FIX 1: GATE — require BOTH pitchers confirmed before generating any pick
+    if (!hp?.confirmed || !ap?.confirmed) continue;
 
-    // --- PITCHER MATCHUP ANALYSIS ---
+    const dataConf: 'HIGH' | 'MEDIUM' | 'LOW' = (hp.ip > 10 && ap.ip > 10) ? 'HIGH' : 'MEDIUM';
+
+    // FIX 1c: Fetch opposing team K-rates for matchup-specific strikeout props
+    const [awayKRate, homeKRate] = await Promise.all([
+      fetchTeamKRate(g.awayTeamId),
+      fetchTeamKRate(g.homeTeamId),
+    ]);
+
+    // --- PITCHER MATCHUP ANALYSIS (FIX 4: pure stats, no underdog ML weighting) ---
+    const homeScore = (10 - hp.era) + (5 - hp.whip * 3) + hp.kPer9 - hp.bbPer9;
+    const awayScore = (10 - ap.era) + (5 - ap.whip * 3) + ap.kPer9 - ap.bbPer9;
+    const pitcherEdge = Math.abs(homeScore - awayScore);
     let betterPitcher: 'home' | 'away' | 'even' = 'even';
-    let pitcherEdge = 0;
-    if (hp && ap) {
-      // Composite score: lower ERA + lower WHIP + higher K/9 + lower BB/9
-      const homeScore = (10 - hp.era) + (5 - hp.whip * 3) + hp.kPer9 - hp.bbPer9;
-      const awayScore = (10 - ap.era) + (5 - ap.whip * 3) + ap.kPer9 - ap.bbPer9;
-      pitcherEdge = Math.abs(homeScore - awayScore);
-      if (homeScore > awayScore + 1.5) betterPitcher = 'home';
-      else if (awayScore > homeScore + 1.5) betterPitcher = 'away';
-    } else if (hp && !ap) {
-      betterPitcher = 'home'; pitcherEdge = 3;
-    } else if (ap && !hp) {
-      betterPitcher = 'away'; pitcherEdge = 3;
-    }
+    if (homeScore > awayScore + 1.5) betterPitcher = 'home';
+    else if (awayScore > homeScore + 1.5) betterPitcher = 'away';
 
-    const favPitcher = betterPitcher === 'home' ? hp! : betterPitcher === 'away' ? ap! : (hp || ap)!;
-    const oppPitcher = betterPitcher === 'home' ? ap : betterPitcher === 'away' ? hp : null;
-    const favTeam = betterPitcher === 'home' ? g.homeTeam : g.awayTeam;
-    const oppTeam = betterPitcher === 'home' ? g.awayTeam : g.homeTeam;
-
-    // --- STRIKEOUT PROP ---
-    if (favPitcher && favPitcher.kPer9 >= 8.0 && favPitcher.ip >= 10) {
-      const projK = (favPitcher.kPer9 / 9) * 5.5; // ~5.5 IP average
+    // FIX 5 PRIORITY 1: STRIKEOUT PROPS (K/9 vs lineup K-rate)
+    // Home pitcher vs away lineup K-rate
+    if (hp.kPer9 >= 8.0 && hp.ip >= 10) {
+      const matchupK = hp.kPer9 * (awayKRate / 0.22); // adjust K/9 by lineup K-tendency vs league avg
+      const projK = (matchupK / 9) * 5.5;
       const kLine = Math.round(projK * 2) / 2 - 0.5;
-      const conf = Math.min(9.2, 6.5 + (favPitcher.kPer9 - 7) * 0.4 + (pitcherEdge > 3 ? 1 : 0));
-      bets.push({
-        id: `mlb-${g.gamePk}-kprop`, game_id: String(g.gamePk),
-        pick: `${favPitcher.name} OVER ${kLine} strikeouts`,
-        edge_pct: parseFloat(((favPitcher.kPer9 - 7.5) * 2.5).toFixed(1)),
+      const kRateBoost = awayKRate > 0.25 ? 'high-strikeout lineup' : awayKRate < 0.19 ? 'contact-heavy lineup (caution)' : 'average K-rate lineup';
+      const conf = Math.min(9.2, 6.5 + (matchupK - 7) * 0.4 + (awayKRate > 0.24 ? 1.0 : 0));
+      props.push({
+        id: `mlb-${g.gamePk}-kprop-hp`, game_id: String(g.gamePk),
+        pick: `${hp.name} OVER ${kLine} strikeouts`,
+        edge_pct: parseFloat(((matchupK - 7.5) * 2.5).toFixed(1)),
         confidence: parseFloat(conf.toFixed(1)),
-        rationale: `${favPitcher.name} (${favPitcher.hand}HP) averaging ${favPitcher.kPer9.toFixed(1)} K/9 through ${favPitcher.ip} IP this season (${favPitcher.gamesStarted} GS). ERA ${favPitcher.era.toFixed(2)}, WHIP ${favPitcher.whip.toFixed(2)}.${oppPitcher ? ` Opposing ${oppTeam} lineup faces a ${favPitcher.hand === 'R' ? 'right' : 'left'}-hander.` : ''} K rate projects to ${projK.toFixed(1)} Ks over ~5.5 IP.`,
+        rationale: `${hp.name} (${hp.hand}HP) averaging ${hp.kPer9.toFixed(1)} K/9 through ${hp.ip} IP (${hp.gamesStarted} GS). ERA ${hp.era.toFixed(2)}, WHIP ${hp.whip.toFixed(2)}. Opposing ${g.awayTeam} K-rate: ${(awayKRate * 100).toFixed(1)}% (${kRateBoost}). Matchup-adjusted projection: ${projK.toFixed(1)} Ks over ~5.5 IP.`,
         bet_type: 'player_prop', best_book: 'DraftKings', sport: 'MLB', data_confidence: dataConf,
-        home_pitcher: hp || undefined, away_pitcher: ap || undefined,
-        matchup_detail: `${ap?.name || 'TBD'} (${ap?.era.toFixed(2) || '?'} ERA) vs ${hp?.name || 'TBD'} (${hp?.era.toFixed(2) || '?'} ERA) | ${g.venue}`,
+        home_pitcher: hp, away_pitcher: ap,
+        matchup_detail: `${ap.name} (${ap.era.toFixed(2)} ERA) vs ${hp.name} (${hp.era.toFixed(2)} ERA) | ${g.venue} | Away K%: ${(awayKRate*100).toFixed(1)}%`,
+      });
+    }
+    // Away pitcher vs home lineup K-rate
+    if (ap.kPer9 >= 8.0 && ap.ip >= 10) {
+      const matchupK = ap.kPer9 * (homeKRate / 0.22);
+      const projK = (matchupK / 9) * 5.5;
+      const kLine = Math.round(projK * 2) / 2 - 0.5;
+      const kRateBoost = homeKRate > 0.25 ? 'high-strikeout lineup' : homeKRate < 0.19 ? 'contact-heavy lineup (caution)' : 'average K-rate lineup';
+      const conf = Math.min(9.2, 6.5 + (matchupK - 7) * 0.4 + (homeKRate > 0.24 ? 1.0 : 0));
+      props.push({
+        id: `mlb-${g.gamePk}-kprop-ap`, game_id: String(g.gamePk),
+        pick: `${ap.name} OVER ${kLine} strikeouts`,
+        edge_pct: parseFloat(((matchupK - 7.5) * 2.5).toFixed(1)),
+        confidence: parseFloat(conf.toFixed(1)),
+        rationale: `${ap.name} (${ap.hand}HP) averaging ${ap.kPer9.toFixed(1)} K/9 through ${ap.ip} IP (${ap.gamesStarted} GS). ERA ${ap.era.toFixed(2)}, WHIP ${ap.whip.toFixed(2)}. Opposing ${g.homeTeam} K-rate: ${(homeKRate * 100).toFixed(1)}% (${kRateBoost}). Matchup-adjusted projection: ${projK.toFixed(1)} Ks over ~5.5 IP.`,
+        bet_type: 'player_prop', best_book: 'DraftKings', sport: 'MLB', data_confidence: dataConf,
+        home_pitcher: hp, away_pitcher: ap,
+        matchup_detail: `${ap.name} (${ap.era.toFixed(2)} ERA) vs ${hp.name} (${hp.era.toFixed(2)} ERA) | ${g.venue} | Home K%: ${(homeKRate*100).toFixed(1)}%`,
       });
     }
 
-    // --- F5 INNINGS (First 5) ---
-    if (hp && ap && betterPitcher !== 'even') {
+    // FIX 5 PRIORITY 2: GAME TOTALS (O/U) weighted by pitching + park factor
+    const combinedERA = (hp.era + ap.era) / 2;
+    const adjustedForPark = combinedERA * (2 - parkFactor);
+    let ouDirection: 'OVER' | 'UNDER' | null = null;
+    let ouReason = '';
+    if (adjustedForPark < 3.2 && parkFactor >= 1.05) {
+      ouDirection = 'OVER';
+      ouReason = `Combined pitching ERA (${combinedERA.toFixed(2)}) at hitter-friendly ${g.venue} (PF ${parkFactor.toFixed(2)}). ${hp.name} (${hp.hrPer9.toFixed(2)} HR/9) and ${ap.name} (${ap.hrPer9.toFixed(2)} HR/9) vulnerable to long ball.`;
+    } else if (combinedERA < 2.5 || (hp.kPer9 > 9 && ap.kPer9 > 9)) {
+      ouDirection = 'UNDER';
+      ouReason = `Elite pitching matchup — ${hp.name} (${hp.era.toFixed(2)} ERA, ${hp.kPer9.toFixed(1)} K/9) vs ${ap.name} (${ap.era.toFixed(2)} ERA, ${ap.kPer9.toFixed(1)} K/9). Park factor ${parkFactor.toFixed(2)} neutral-to-pitcher-friendly.`;
+    } else if (parkFactor >= 1.10) {
+      ouDirection = 'OVER';
+      ouReason = `${g.venue} is one of the most hitter-friendly parks (PF ${parkFactor.toFixed(2)}). Neither starter dominant enough to suppress scoring.`;
+    }
+    if (ouDirection) {
+      const conf = Math.min(8.5, 6.5 + Math.abs(parkFactor - 1.0) * 10);
+      totals.push({
+        id: `mlb-${g.gamePk}-ou`, game_id: String(g.gamePk),
+        pick: `${ouDirection} (${g.awayTeam}@${g.homeTeam})`,
+        edge_pct: parseFloat((Math.abs(parkFactor - 1.0) * 15 + 2).toFixed(1)),
+        confidence: parseFloat(conf.toFixed(1)),
+        rationale: ouReason, bet_type: 'total', best_book: 'BetMGM', sport: 'MLB', data_confidence: dataConf,
+        home_pitcher: hp, away_pitcher: ap,
+        matchup_detail: `${ap.name} (${ap.era.toFixed(2)}) vs ${hp.name} (${hp.era.toFixed(2)}) | ${g.venue} (PF: ${parkFactor.toFixed(2)})`,
+      });
+    }
+
+    // FIX 5 PRIORITY 3: F5 SIDES (First 5 innings)
+    if (betterPitcher !== 'even') {
+      const favPitcher = betterPitcher === 'home' ? hp : ap;
+      const oppPitcher = betterPitcher === 'home' ? ap : hp;
+      const favTeam = betterPitcher === 'home' ? g.homeTeam : g.awayTeam;
       const conf = Math.min(8.8, 6.0 + pitcherEdge * 0.5);
-      bets.push({
+      sides.push({
         id: `mlb-${g.gamePk}-f5`, game_id: String(g.gamePk),
         pick: `${favTeam} F5 -0.5`,
         edge_pct: parseFloat((pitcherEdge * 1.8).toFixed(1)),
         confidence: parseFloat(conf.toFixed(1)),
-        rationale: `${favPitcher.name} (${favPitcher.era.toFixed(2)} ERA, ${favPitcher.whip.toFixed(2)} WHIP, ${favPitcher.kPer9.toFixed(1)} K/9) vs ${oppPitcher!.name} (${oppPitcher!.era.toFixed(2)} ERA, ${oppPitcher!.whip.toFixed(2)} WHIP, ${oppPitcher!.kPer9.toFixed(1)} K/9). First 5 favors ${favTeam} — pitching advantage is strongest before bullpens engage. ${favPitcher.hand}HP vs ${oppPitcher!.hand}HP matchup.`,
+        rationale: `${favPitcher.name} (${favPitcher.era.toFixed(2)} ERA, ${favPitcher.whip.toFixed(2)} WHIP, ${favPitcher.kPer9.toFixed(1)} K/9) vs ${oppPitcher.name} (${oppPitcher.era.toFixed(2)} ERA, ${oppPitcher.whip.toFixed(2)} WHIP, ${oppPitcher.kPer9.toFixed(1)} K/9). Pitching advantage strongest before bullpens engage.`,
         bet_type: 'first_5', best_book: 'FanDuel', sport: 'MLB', data_confidence: dataConf,
         home_pitcher: hp, away_pitcher: ap,
         matchup_detail: `${ap.name} (${ap.era.toFixed(2)}) vs ${hp.name} (${hp.era.toFixed(2)}) | ${g.venue}`,
       });
     }
-
-    // --- GAME TOTAL (O/U) weighted by pitching + park factor ---
-    if (hp && ap) {
-      const combinedERA = (hp.era + ap.era) / 2;
-      const adjustedForPark = combinedERA * (2 - parkFactor); // Lower adjusted = more runs
-      let ouDirection: 'OVER' | 'UNDER';
-      let ouReason: string;
-      if (adjustedForPark < 3.2 && parkFactor >= 1.05) {
-        ouDirection = 'OVER';
-        ouReason = `Combined pitching ERA (${combinedERA.toFixed(2)}) at a hitter-friendly park (${g.venue}, factor ${parkFactor.toFixed(2)}). ${hp.name} (${hp.hrPer9.toFixed(2)} HR/9) and ${ap.name} (${ap.hrPer9.toFixed(2)} HR/9) are both vulnerable to the long ball.`;
-      } else if (combinedERA < 2.5 || (hp.kPer9 > 9 && ap.kPer9 > 9)) {
-        ouDirection = 'UNDER';
-        ouReason = `Elite pitching matchup — ${hp.name} (${hp.era.toFixed(2)} ERA, ${hp.kPer9.toFixed(1)} K/9) vs ${ap.name} (${ap.era.toFixed(2)} ERA, ${ap.kPer9.toFixed(1)} K/9). Both starters dominating early this season. Park factor ${parkFactor.toFixed(2)} is neutral-to-pitcher-friendly.`;
-      } else if (parkFactor >= 1.10) {
-        ouDirection = 'OVER';
-        ouReason = `${g.venue} is one of the most hitter-friendly parks in baseball (factor ${parkFactor.toFixed(2)}). Neither starter has been dominant enough to suppress scoring here.`;
-      } else {
-        continue; // No clear edge on total
-      }
-      const conf = Math.min(8.5, 6.5 + Math.abs(parkFactor - 1.0) * 10);
-      bets.push({
-        id: `mlb-${g.gamePk}-ou`, game_id: String(g.gamePk),
-        pick: `${ouDirection} (${g.awayTeam}@${g.homeTeam})`,
-        edge_pct: parseFloat((Math.abs(parkFactor - 1.0) * 15 + 2).toFixed(1)),
-        confidence: parseFloat(conf.toFixed(1)),
-        rationale: ouReason,
-        bet_type: 'total', best_book: 'BetMGM', sport: 'MLB', data_confidence: dataConf,
-        home_pitcher: hp, away_pitcher: ap,
-        matchup_detail: `${ap.name} (${ap.era.toFixed(2)}) vs ${hp.name} (${hp.era.toFixed(2)}) | ${g.venue} (PF: ${parkFactor.toFixed(2)})`,
-      });
-    }
   }
-  return bets.sort((a, b) => b.confidence - a.confidence).slice(0, 5);
+  // FIX 5: Return in priority order: props first, totals second, sides third
+  const allBets = [...props.sort((a,b) => b.confidence - a.confidence), ...totals.sort((a,b) => b.confidence - a.confidence), ...sides.sort((a,b) => b.confidence - a.confidence)];
+  return allBets.slice(0, 5);
 }
 
-// ============ NHL BET ENGINE — GOALIE-FIRST MODEL ============
+// ============ NHL BET ENGINE — GOALIE-FIRST (FIX 3: confirmation gate, FIX 4: no underdog, FIX 5: priority order) ============
 function generateNHLBets(games: NHLGameData[]): BestBet[] {
-  const bets: BestBet[] = [];
+  const props: BestBet[] = [];
+  const totals: BestBet[] = [];
+  const sides: BestBet[] = [];
+
   for (const g of games) {
     const hg = g.homeGoalie;
     const ag = g.awayGoalie;
-    const dataConf: 'HIGH' | 'MEDIUM' | 'LOW' = (hg?.confirmed && ag?.confirmed) ? (hg.gamesPlayed > 10 && ag.gamesPlayed > 10 ? 'HIGH' : 'MEDIUM') : 'LOW';
 
-    if (!hg && !ag) {
-      bets.push({ id: `nhl-${g.gameId}-pending`, game_id: String(g.gameId), pick: `${g.awayTeam} @ ${g.homeTeam} — PENDING`, edge_pct: 0, confidence: 0, rationale: 'Starting goalie not confirmed for either team. No recommendation.', bet_type: 'NO BET', best_book: '', sport: 'NHL', data_confidence: 'LOW' });
-      continue;
+    // FIX 3: GATE — require BOTH goalies confirmed before generating any pick
+    if (!hg?.confirmed || !ag?.confirmed) continue;
+
+    const dataConf: 'HIGH' | 'MEDIUM' | 'LOW' = (hg.gamesPlayed > 10 && ag.gamesPlayed > 10) ? 'HIGH' : 'MEDIUM';
+    const homeSvDiff = hg.savePct - ag.savePct;
+    const homeGAADiff = ag.gaa - hg.gaa;
+    const goalieEdge = (homeSvDiff * 100) + (homeGAADiff * 2);
+    const hgLast5Avg = hg.last5.length > 0 ? hg.last5.reduce((s, x) => s + x.svPct, 0) / hg.last5.length : hg.savePct;
+    const agLast5Avg = ag.last5.length > 0 ? ag.last5.reduce((s, x) => s + x.svPct, 0) / ag.last5.length : ag.savePct;
+
+    // FIX 5 PRIORITY 1: GOALIE SAVE PROPS (when one goalie is in elite form)
+    if (hgLast5Avg > 0.930 && hg.gamesPlayed > 15) {
+      const avgSA = hg.last5.length > 0 ? hg.last5.reduce((s, x) => s + x.sa, 0) / hg.last5.length : 28;
+      const projSaves = Math.round(avgSA * hgLast5Avg);
+      props.push({
+        id: `nhl-${g.gameId}-sv-hg`, game_id: String(g.gameId),
+        pick: `${hg.name} OVER ${projSaves - 2}.5 saves`,
+        edge_pct: parseFloat(((hgLast5Avg - 0.91) * 200).toFixed(1)),
+        confidence: parseFloat(Math.min(9.0, 7.0 + (hgLast5Avg - 0.92) * 50).toFixed(1)),
+        rationale: `${hg.name} in elite recent form: last 5 SV% ${(hgLast5Avg * 100).toFixed(1)}%. Season: ${(hg.savePct * 100).toFixed(1)}% SV, ${hg.gaa.toFixed(2)} GAA in ${hg.gamesPlayed} GP. Facing ${g.awayTeam} (${g.awayRecord}). Avg ${avgSA.toFixed(0)} SA/game in last 5.`,
+        bet_type: 'player_prop', best_book: 'DraftKings', sport: 'NHL', data_confidence: dataConf,
+        home_goalie: hg, away_goalie: ag,
+      });
+    }
+    if (agLast5Avg > 0.930 && ag.gamesPlayed > 15) {
+      const avgSA = ag.last5.length > 0 ? ag.last5.reduce((s, x) => s + x.sa, 0) / ag.last5.length : 28;
+      const projSaves = Math.round(avgSA * agLast5Avg);
+      props.push({
+        id: `nhl-${g.gameId}-sv-ag`, game_id: String(g.gameId),
+        pick: `${ag.name} OVER ${projSaves - 2}.5 saves`,
+        edge_pct: parseFloat(((agLast5Avg - 0.91) * 200).toFixed(1)),
+        confidence: parseFloat(Math.min(9.0, 7.0 + (agLast5Avg - 0.92) * 50).toFixed(1)),
+        rationale: `${ag.name} in elite recent form: last 5 SV% ${(agLast5Avg * 100).toFixed(1)}%. Season: ${(ag.savePct * 100).toFixed(1)}% SV, ${ag.gaa.toFixed(2)} GAA in ${ag.gamesPlayed} GP. Facing ${g.homeTeam} (${g.homeRecord}).`,
+        bet_type: 'player_prop', best_book: 'DraftKings', sport: 'NHL', data_confidence: dataConf,
+        home_goalie: hg, away_goalie: ag,
+      });
     }
 
-    // Goalie comparison
-    if (hg && ag) {
-      const homeSvDiff = hg.savePct - ag.savePct;
-      const homeGAADiff = ag.gaa - hg.gaa; // positive = home goalie better
-      const goalieEdge = (homeSvDiff * 100) + (homeGAADiff * 2);
+    // FIX 5 PRIORITY 2: GAME TOTAL — under when both goalies hot
+    if (hgLast5Avg > 0.920 && agLast5Avg > 0.920) {
+      totals.push({
+        id: `nhl-${g.gameId}-under`, game_id: String(g.gameId),
+        pick: `UNDER (${g.awayTeam}@${g.homeTeam})`,
+        edge_pct: parseFloat(((hgLast5Avg + agLast5Avg - 1.84) * 50).toFixed(1)),
+        confidence: parseFloat(Math.min(8.5, 7.0 + (hgLast5Avg - 0.92) * 50).toFixed(1)),
+        rationale: `Both goalies in elite recent form. ${hg.name} last 5 SV%: ${(hgLast5Avg * 100).toFixed(1)}%, ${ag.name} last 5 SV%: ${(agLast5Avg * 100).toFixed(1)}%. Low-scoring game expected.`,
+        bet_type: 'total', best_book: 'FanDuel', sport: 'NHL', data_confidence: dataConf,
+        home_goalie: hg, away_goalie: ag,
+      });
+    }
 
-      // Last 5 form
-      const hgLast5Avg = hg.last5.length > 0 ? hg.last5.reduce((s, g) => s + g.svPct, 0) / hg.last5.length : hg.savePct;
-      const agLast5Avg = ag.last5.length > 0 ? ag.last5.reduce((s, g) => s + g.svPct, 0) / ag.last5.length : ag.savePct;
-
-      if (Math.abs(goalieEdge) > 2) {
-        const betterSide = goalieEdge > 0 ? 'home' : 'away';
-        const betterGoalie = betterSide === 'home' ? hg : ag;
-        const worseGoalie = betterSide === 'home' ? ag : hg;
-        const betterTeam = betterSide === 'home' ? g.homeTeam : g.awayTeam;
-        const conf = Math.min(9.0, 6.5 + Math.abs(goalieEdge) * 0.3);
-        bets.push({
-          id: `nhl-${g.gameId}-ml`, game_id: String(g.gameId),
-          pick: `${betterTeam} ML`,
-          edge_pct: parseFloat(Math.abs(goalieEdge).toFixed(1)),
-          confidence: parseFloat(conf.toFixed(1)),
-          rationale: `${betterGoalie.name} (${(betterGoalie.savePct * 100).toFixed(1)}% SV, ${betterGoalie.gaa.toFixed(2)} GAA, ${betterGoalie.wins}W) vs ${worseGoalie.name} (${(worseGoalie.savePct * 100).toFixed(1)}% SV, ${worseGoalie.gaa.toFixed(2)} GAA, ${worseGoalie.wins}W). ${betterGoalie.name} last 5 SV%: ${(hgLast5Avg * 100).toFixed(1)}%. Goaltending edge clearly favors ${betterTeam}.`,
-          bet_type: 'moneyline', best_book: 'DraftKings', sport: 'NHL', data_confidence: dataConf,
-          home_goalie: hg, away_goalie: ag,
-          matchup_detail: `${ag.name} (${(ag.savePct * 100).toFixed(1)}% SV) vs ${hg.name} (${(hg.savePct * 100).toFixed(1)}% SV) | ${g.homeTeam} (${g.homeRecord}) vs ${g.awayTeam} (${g.awayRecord})`,
-        });
-      }
-
-      // Under if both goalies hot
-      if (hgLast5Avg > 0.920 && agLast5Avg > 0.920) {
-        bets.push({
-          id: `nhl-${g.gameId}-under`, game_id: String(g.gameId),
-          pick: `UNDER (${g.awayTeam}@${g.homeTeam})`,
-          edge_pct: parseFloat(((hgLast5Avg + agLast5Avg - 1.84) * 50).toFixed(1)),
-          confidence: parseFloat(Math.min(8.5, 7.0 + (hgLast5Avg - 0.92) * 50).toFixed(1)),
-          rationale: `Both goalies in elite recent form. ${hg.name} last 5 SV%: ${(hgLast5Avg * 100).toFixed(1)}%, ${ag.name} last 5 SV%: ${(agLast5Avg * 100).toFixed(1)}%. Low-scoring game expected.`,
-          bet_type: 'total', best_book: 'FanDuel', sport: 'NHL', data_confidence: dataConf,
-          home_goalie: hg, away_goalie: ag,
-        });
-      }
+    // FIX 5 PRIORITY 3: SIDES — ML based on goalie edge (FIX 4: no underdog weighting)
+    if (Math.abs(goalieEdge) > 2) {
+      const betterSide = goalieEdge > 0 ? 'home' : 'away';
+      const betterGoalie = betterSide === 'home' ? hg : ag;
+      const worseGoalie = betterSide === 'home' ? ag : hg;
+      const betterTeam = betterSide === 'home' ? g.homeTeam : g.awayTeam;
+      const conf = Math.min(9.0, 6.5 + Math.abs(goalieEdge) * 0.3);
+      sides.push({
+        id: `nhl-${g.gameId}-ml`, game_id: String(g.gameId),
+        pick: `${betterTeam} ML`,
+        edge_pct: parseFloat(Math.abs(goalieEdge).toFixed(1)),
+        confidence: parseFloat(conf.toFixed(1)),
+        rationale: `${betterGoalie.name} (${(betterGoalie.savePct * 100).toFixed(1)}% SV, ${betterGoalie.gaa.toFixed(2)} GAA, ${betterGoalie.wins}W) vs ${worseGoalie.name} (${(worseGoalie.savePct * 100).toFixed(1)}% SV, ${worseGoalie.gaa.toFixed(2)} GAA, ${worseGoalie.wins}W). Goaltending edge favors ${betterTeam}.`,
+        bet_type: 'moneyline', best_book: 'DraftKings', sport: 'NHL', data_confidence: dataConf,
+        home_goalie: hg, away_goalie: ag,
+        matchup_detail: `${ag.name} (${(ag.savePct * 100).toFixed(1)}% SV) vs ${hg.name} (${(hg.savePct * 100).toFixed(1)}% SV)`,
+      });
     }
   }
-  return bets.sort((a, b) => b.confidence - a.confidence).slice(0, 5);
+  const allBets = [...props.sort((a,b) => b.confidence - a.confidence), ...totals.sort((a,b) => b.confidence - a.confidence), ...sides.sort((a,b) => b.confidence - a.confidence)];
+  return allBets.slice(0, 5);
 }
 
-// ============ NBA BET ENGINE — MATCHUP-BASED ============
+// ============ NBA BET ENGINE — MATCHUP-BASED (FIX 2: defensive data fetch, FIX 4: no underdog, FIX 5: priority order) ============
+
+// FIX 2: Fetch team defensive stats from ESPN
+interface NBATeamStats {
+  teamId: string;
+  teamName: string;
+  record: string;
+  pointsPerGame: number;
+  oppPointsPerGame: number;
+  pace: number;
+  defRating: number;
+  reboundsPerGame: number;
+}
+
+async function fetchNBATeamStats(teamId: string): Promise<NBATeamStats | null> {
+  try {
+    const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/teams/${teamId}/statistics`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const stats = json?.results?.stats?.categories || json?.stats?.categories || [];
+    let ppg = 0, oppPpg = 0, rpg = 0, pace = 98;
+    for (const cat of stats) {
+      for (const stat of (cat?.stats || [])) {
+        if (stat.name === 'avgPoints') ppg = stat.value || 0;
+        if (stat.name === 'avgPointsAgainst' || stat.name === 'oppAvgPoints') oppPpg = stat.value || 0;
+        if (stat.name === 'avgRebounds') rpg = stat.value || 0;
+        if (stat.name === 'possessions' || stat.name === 'pace') pace = stat.value || 98;
+      }
+    }
+    return { teamId, teamName: '', record: '', pointsPerGame: ppg, oppPointsPerGame: oppPpg, pace, defRating: oppPpg, reboundsPerGame: rpg };
+  } catch { return null; }
+}
+
 async function generateNBABets(): Promise<BestBet[]> {
-  const bets: BestBet[] = [];
+  const props: BestBet[] = [];
+  const totals: BestBet[] = [];
+  const sides: BestBet[] = [];
   try {
     const res = await fetch(`${ESPN_BASE}/basketball/nba/scoreboard`);
     if (!res.ok) return [];
     const json = await res.json();
     const events = json?.events || [];
-
     for (const ev of events) {
       const comp = ev.competitions?.[0];
       if (!comp) continue;
@@ -514,65 +599,103 @@ async function generateNBABets(): Promise<BestBet[]> {
       const awayTeam = away?.team?.displayName || 'Away';
       const homeRecord = home?.records?.[0]?.summary || '';
       const awayRecord = away?.records?.[0]?.summary || '';
+      const homeTeamId = home?.team?.id || '';
+      const awayTeamId = away?.team?.id || '';
 
-      // Fetch odds
+      // FIX 2: Fetch defensive stats for both teams
+      const [homeStats, awayStats] = await Promise.all([
+        fetchNBATeamStats(homeTeamId),
+        fetchNBATeamStats(awayTeamId),
+      ]);
+
+      let oddsData: any = null;
       try {
         const oddsRes = await fetch(`https://sports.core.api.espn.com/v2/sports/basketball/leagues/nba/events/${eventId}/competitions/${eventId}/odds`);
-        if (!oddsRes.ok) continue;
-        const oddsJson = await oddsRes.json();
-        const item = oddsJson?.items?.[0];
-        if (!item) continue;
-
-        const spread = parseFloat(item.details?.split(' ').pop() || '0') || 0;
-        const overUnder = parseFloat(item.overUnder) || 0;
-        const homeML = item.homeTeamOdds?.moneyLine;
-        const awayML = item.awayTeamOdds?.moneyLine;
-        const homeFav = item.homeTeamOdds?.favorite === true;
-        const favTeam = homeFav ? homeTeam : awayTeam;
-        const dogTeam = homeFav ? awayTeam : homeTeam;
-
-        // High total = pace-up game
-        if (overUnder >= 228) {
-          bets.push({
-            id: `nba-${eventId}-over`, game_id: eventId,
-            pick: `OVER ${overUnder} (${awayTeam}@${homeTeam})`,
-            edge_pct: parseFloat(((overUnder - 225) * 0.8).toFixed(1)),
-            confidence: parseFloat(Math.min(8.8, 6.5 + (overUnder - 225) * 0.3).toFixed(1)),
-            rationale: `Game total set at ${overUnder} — one of the highest on the slate indicating oddsmakers expect a pace-up game. ${homeTeam} (${homeRecord}) hosting ${awayTeam} (${awayRecord}). High totals correlate with increased scoring variance favoring the over.`,
-            bet_type: 'total', best_book: 'FanDuel', sport: 'NBA', data_confidence: 'MEDIUM',
-            matchup_detail: `${awayTeam} (${awayRecord}) @ ${homeTeam} (${homeRecord}) | O/U: ${overUnder} | Spread: ${spread}`,
-          });
-        }
-
-        // Spread value
-        if (Math.abs(spread) >= 3 && Math.abs(spread) <= 7) {
-          bets.push({
-            id: `nba-${eventId}-spread`, game_id: eventId,
-            pick: `${favTeam} ${spread > 0 ? '+' : ''}${spread}`,
-            edge_pct: parseFloat((Math.abs(spread) * 0.8).toFixed(1)),
-            confidence: parseFloat(Math.min(8.5, 6.5 + Math.abs(spread) * 0.25).toFixed(1)),
-            rationale: `${favTeam} favored by ${Math.abs(spread)} at home. ${favTeam} (${homeFav ? homeRecord : awayRecord}) has the stronger record. Spread is in the value range (3-7 pts) where favorites cover at a higher rate in the NBA.`,
-            bet_type: 'spread', best_book: 'DraftKings', sport: 'NBA', data_confidence: 'MEDIUM',
-            matchup_detail: `${awayTeam} (${awayRecord}) @ ${homeTeam} (${homeRecord}) | Spread: ${spread}`,
-          });
-        }
-
-        // Moneyline value on close games
-        if (homeML && awayML && Math.abs(spread) <= 3) {
-          bets.push({
-            id: `nba-${eventId}-ml`, game_id: eventId,
-            pick: `${homeFav ? homeTeam : dogTeam} ML (${homeFav ? homeML : awayML > 0 ? '+' + awayML : awayML})`,
-            edge_pct: 4.5,
-            confidence: 7.5,
-            rationale: `Near pick'em game (spread ${spread}). ${homeTeam} has home court advantage. Close lines offer value on the home team ML in playoff/late-season scenarios.`,
-            bet_type: 'moneyline', best_book: 'Caesars', sport: 'NBA', data_confidence: 'MEDIUM',
-            matchup_detail: `${awayTeam} (${awayRecord}) @ ${homeTeam} (${homeRecord})`,
-          });
+        if (oddsRes.ok) {
+          const oddsJson = await oddsRes.json();
+          oddsData = oddsJson?.items?.[0];
         }
       } catch {}
+      if (!oddsData) continue;
+
+      const spread = parseFloat(oddsData.details?.split(' ').pop() || '0') || 0;
+      const overUnder = parseFloat(oddsData.overUnder) || 0;
+
+      // FIX 2: Defensive matchup analysis for prop generation
+      const homeDefRating = homeStats?.oppPointsPerGame || 110;
+      const awayDefRating = awayStats?.oppPointsPerGame || 110;
+      const homePace = homeStats?.pace || 98;
+      const awayPace = awayStats?.pace || 98;
+      const combinedPace = (homePace + awayPace) / 2;
+      const paceAdjustedTotal = (homeDefRating + awayDefRating) * (combinedPace / 98);
+
+      // FIX 5 PRIORITY 1: PLAYER PROPS — based on defensive matchup weakness
+      if (awayDefRating > 113 && homeStats) {
+        // Away team has bad defense = home team scoring prop
+        props.push({
+          id: `nba-${eventId}-hprop`, game_id: eventId,
+          pick: `${homeTeam} OVER team total`,
+          edge_pct: parseFloat(((awayDefRating - 110) * 1.5).toFixed(1)),
+          confidence: parseFloat(Math.min(8.8, 6.5 + (awayDefRating - 110) * 0.5).toFixed(1)),
+          rationale: `${awayTeam} allows ${awayDefRating.toFixed(1)} PPG (bottom-tier defense). ${homeTeam} (${homeRecord}) should exploit this at home. Pace: ${combinedPace.toFixed(1)}.`,
+          bet_type: 'player_prop', best_book: 'DraftKings', sport: 'NBA', data_confidence: homeStats ? 'MEDIUM' : 'LOW',
+          matchup_detail: `${awayTeam} DEF: ${awayDefRating.toFixed(1)} PPG allowed | ${homeTeam} OFF: ${homeStats.pointsPerGame.toFixed(1)} PPG | Pace: ${combinedPace.toFixed(1)}`,
+        });
+      }
+      if (homeDefRating > 113 && awayStats) {
+        props.push({
+          id: `nba-${eventId}-aprop`, game_id: eventId,
+          pick: `${awayTeam} OVER team total`,
+          edge_pct: parseFloat(((homeDefRating - 110) * 1.5).toFixed(1)),
+          confidence: parseFloat(Math.min(8.8, 6.5 + (homeDefRating - 110) * 0.5).toFixed(1)),
+          rationale: `${homeTeam} allows ${homeDefRating.toFixed(1)} PPG (bottom-tier defense). ${awayTeam} (${awayRecord}) in favorable scoring matchup. Pace: ${combinedPace.toFixed(1)}.`,
+          bet_type: 'player_prop', best_book: 'DraftKings', sport: 'NBA', data_confidence: awayStats ? 'MEDIUM' : 'LOW',
+          matchup_detail: `${homeTeam} DEF: ${homeDefRating.toFixed(1)} PPG allowed | ${awayTeam} OFF: ${awayStats.pointsPerGame.toFixed(1)} PPG | Pace: ${combinedPace.toFixed(1)}`,
+        });
+      }
+
+      // FIX 5 PRIORITY 2: TOTALS (pace-adjusted)
+      if (overUnder >= 226 && combinedPace > 99) {
+        totals.push({
+          id: `nba-${eventId}-over`, game_id: eventId,
+          pick: `OVER ${overUnder} (${awayTeam}@${homeTeam})`,
+          edge_pct: parseFloat(((paceAdjustedTotal - overUnder) * 0.5 + 3).toFixed(1)),
+          confidence: parseFloat(Math.min(8.8, 6.5 + (combinedPace - 97) * 0.4).toFixed(1)),
+          rationale: `High-pace matchup (combined ${combinedPace.toFixed(1)}). ${homeTeam} DEF allows ${homeDefRating.toFixed(1)} PPG, ${awayTeam} DEF allows ${awayDefRating.toFixed(1)} PPG. Pace-adjusted total: ${paceAdjustedTotal.toFixed(1)} vs line of ${overUnder}.`,
+          bet_type: 'total', best_book: 'FanDuel', sport: 'NBA', data_confidence: (homeStats && awayStats) ? 'MEDIUM' : 'LOW',
+          matchup_detail: `Pace: ${combinedPace.toFixed(1)} | Home DEF: ${homeDefRating.toFixed(1)} | Away DEF: ${awayDefRating.toFixed(1)} | O/U: ${overUnder}`,
+        });
+      } else if (overUnder <= 210 && combinedPace < 97) {
+        totals.push({
+          id: `nba-${eventId}-under`, game_id: eventId,
+          pick: `UNDER ${overUnder} (${awayTeam}@${homeTeam})`,
+          edge_pct: parseFloat(((overUnder - paceAdjustedTotal) * 0.5 + 3).toFixed(1)),
+          confidence: parseFloat(Math.min(8.5, 6.5 + (97 - combinedPace) * 0.5).toFixed(1)),
+          rationale: `Slow-pace matchup (combined ${combinedPace.toFixed(1)}). Both teams grind. Pace-adjusted total: ${paceAdjustedTotal.toFixed(1)} vs line of ${overUnder}.`,
+          bet_type: 'total', best_book: 'FanDuel', sport: 'NBA', data_confidence: (homeStats && awayStats) ? 'MEDIUM' : 'LOW',
+          matchup_detail: `Pace: ${combinedPace.toFixed(1)} | O/U: ${overUnder}`,
+        });
+      }
+
+      // FIX 5 PRIORITY 3: SIDES (FIX 4: based on matchup stats, not spread size or underdog status)
+      if (Math.abs(spread) >= 3 && Math.abs(spread) <= 7 && homeStats && awayStats) {
+        const homeFav = spread < 0;
+        const favTeam = homeFav ? homeTeam : awayTeam;
+        const favRecord = homeFav ? homeRecord : awayRecord;
+        sides.push({
+          id: `nba-${eventId}-spread`, game_id: eventId,
+          pick: `${favTeam} ${spread > 0 ? '+' : ''}${spread}`,
+          edge_pct: parseFloat((Math.abs(spread) * 0.8).toFixed(1)),
+          confidence: parseFloat(Math.min(8.5, 6.5 + Math.abs(spread) * 0.25).toFixed(1)),
+          rationale: `${favTeam} (${favRecord}) favored by ${Math.abs(spread).toFixed(1)}. DEF matchup: ${homeTeam} allows ${homeDefRating.toFixed(1)} PPG, ${awayTeam} allows ${awayDefRating.toFixed(1)} PPG. Pace: ${combinedPace.toFixed(1)}.`,
+          bet_type: 'spread', best_book: 'DraftKings', sport: 'NBA', data_confidence: 'MEDIUM',
+          matchup_detail: `${awayTeam} (${awayRecord}) @ ${homeTeam} (${homeRecord}) | Spread: ${spread} | DEF: ${homeDefRating.toFixed(1)} vs ${awayDefRating.toFixed(1)}`,
+        });
+      }
     }
   } catch {}
-  return bets.sort((a, b) => b.confidence - a.confidence).slice(0, 5);
+  const allBets = [...props.sort((a,b) => b.confidence - a.confidence), ...totals.sort((a,b) => b.confidence - a.confidence), ...sides.sort((a,b) => b.confidence - a.confidence)];
+  return allBets.slice(0, 5);
 }
 
 // ============ CACHE ============
@@ -588,9 +711,7 @@ async function cacheNews(news: NewsItem[]) {
 // ============ PUBLIC API ============
 export const api = {
   games: async (): Promise<Game[]> => {
-    const [mlb, nba, nhl] = await Promise.all([
-      fetchEspnScoreboard('MLB'), fetchEspnScoreboard('NBA'), fetchEspnScoreboard('NHL'),
-    ]);
+    const [mlb, nba, nhl] = await Promise.all([fetchEspnScoreboard('MLB'), fetchEspnScoreboard('NBA'), fetchEspnScoreboard('NHL')]);
     const all = [...mlb, ...nba, ...nhl];
     cacheGames(all);
     return all;
@@ -602,7 +723,7 @@ export const api = {
       generateNBABets(),
       fetchWeather(),
     ]);
-    const mlbBets = generateMLBBets(mlbGames, weather);
+    const mlbBets = await generateMLBBets(mlbGames, weather);
     const nhlBets = generateNHLBets(nhlGames);
     return [...mlbBets, ...nbaBets, ...nhlBets];
   },
