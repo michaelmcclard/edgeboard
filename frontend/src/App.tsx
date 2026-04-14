@@ -223,6 +223,7 @@ export default function App() {
   const mlbBets = bets.filter(b => b.sport === 'MLB');
   const nbaBets = bets.filter(b => b.sport === 'NBA');
   const nhlBets = bets.filter(b => b.sport === 'NHL');
+    const top5 = [...bets].sort((a, b) => (b.composite_score || 0) - (a.composite_score || 0)).slice(0, 5);
   const betCount = { ml: bets.filter(b => b.bet_type === 'moneyline').length, rl: bets.filter(b => b.bet_type === 'run_line' || b.bet_type === 'puck_line' || b.bet_type === 'spread').length, tot: bets.filter(b => b.bet_type === 'total' || b.bet_type === 'first_5').length, prop: bets.filter(b => b.bet_type === 'player_prop').length };
 
   return (
@@ -236,6 +237,36 @@ export default function App() {
           <RefreshCw size={16} />
         </button>
       </header>
+
+        {/* TOP 5 BETS OF THE DAY */}
+        {top5.length > 0 && (
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Trophy size={18} className="text-yellow-400" />
+              <h2 className="text-sm font-bold uppercase tracking-wider text-yellow-400">Top 5 Bets of the Day</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+              {top5.map((b, i) => (
+                <div key={b.id} className="bg-edge-card border border-yellow-800/40 rounded-lg p-3 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 bg-yellow-500/20 text-yellow-300 text-[10px] font-bold px-2 py-0.5 rounded-bl">#{i + 1}</div>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <SportBadge sport={b.sport} />
+                    <BetTypeBadge type={b.bet_type} />
+                  </div>
+                  <div className="text-white font-bold text-sm mb-1">{b.pick}</div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <Badge value={b.composite_score || 0} />
+                    <span className="text-edge-green text-xs font-semibold">+{b.edge_pct}%</span>
+                  </div>
+                  <p className="text-edge-muted text-[11px] leading-snug mb-1.5">{b.rationale}</p>
+                  <div className="text-[10px] text-edge-muted">{b.matchup_detail}</div>
+                  {b.weather_detail && <div className="text-[10px] text-blue-400 mt-1">{b.weather_detail}</div>}
+                  {b.umpire_detail && <div className="text-[10px] text-purple-400 mt-0.5">{b.umpire_detail}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         <Card title="TODAY'S GAMES" icon={<BarChart3 size={14} className="text-edge-green" />} className="lg:col-span-2">
