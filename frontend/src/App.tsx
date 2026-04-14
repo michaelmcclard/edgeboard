@@ -178,7 +178,7 @@ export default function App() {
       }
       {tab === "history" &&
         <Card title="HISTORY" icon={<BarChart3 size={16} className="text-edge-muted" />}>
-          <p className="text-edge-muted text-sm">Coming soon</p>
+          <p className="text-edge-muted text-sm">No graded bets yet — picks will appear here once settled</p>
         </Card>
       }
 
