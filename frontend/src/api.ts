@@ -4,7 +4,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// ── Interfaces ──
+// -- Interfaces --
 export interface Game {
   id: string;
   home_team: string;
@@ -55,7 +55,7 @@ export interface Parlay {
   num_legs: number;
 }
 
-// ── ESPN helpers ──
+// -- ESPN helpers --
 const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 const SPORT_MAP: Record<string, string> = {
   MLB: 'baseball/mlb',
@@ -96,7 +96,7 @@ async function fetchEspnScoreboard(sport: string): Promise<Game[]> {
   } catch { return []; }
 }
 
-// ── ESPN News ──
+// -- ESPN News --
 async function fetchEspnNews(): Promise<NewsItem[]> {
   const sports = ['baseball/mlb', 'basketball/nba', 'hockey/nhl'];
   const labels = ['MLB', 'NBA', 'NHL'];
@@ -122,7 +122,7 @@ async function fetchEspnNews(): Promise<NewsItem[]> {
   return all.slice(0, 10);
 }
 
-// ── Open-Meteo weather (St. Louis area default + major cities) ──
+// -- Open-Meteo weather --
 interface VenueCoord { lat: number; lon: number; label: string; }
 const VENUE_COORDS: VenueCoord[] = [
   { lat: 38.6226, lon: -90.1928, label: 'St. Louis' },
@@ -148,7 +148,7 @@ async function fetchWeather(): Promise<WeatherData[]> {
   try {
     const lats = VENUE_COORDS.map(v => v.lat).join(',');
     const lons = VENUE_COORDS.map(v => v.lon).join(',');
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,wind_speed_10,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,wind_speed_10m,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph`;
     const res = await fetch(url);
     if (!res.ok) return out;
     const json = await res.json();
@@ -157,7 +157,7 @@ async function fetchWeather(): Promise<WeatherData[]> {
       const cur = r?.current || r?.current_weather;
       if (!cur) return;
       const temp = Math.round(cur.temperature_2m ?? cur.temperature ?? 0);
-      const wind = Math.round(cur.wind_speed_10 ?? cur.windspeed ?? 0);
+      const wind = Math.round(cur.wind_speed_10m ?? cur.windspeed ?? 0);
       const code = cur.weather_code ?? cur.weathercode ?? 0;
       out.push({
         id: i,
@@ -172,7 +172,7 @@ async function fetchWeather(): Promise<WeatherData[]> {
   return out;
 }
 
-// ── Cache layer: write to Supabase in background ──
+// -- Cache layer: write to Supabase in background --
 async function cacheGames(games: Game[]) {
   if (!supabaseUrl || games.length === 0) return;
   try {
@@ -192,7 +192,7 @@ async function cacheNews(news: NewsItem[]) {
   } catch { /* silent */ }
 }
 
-// ── Public API object ──
+// -- Public API object --
 export const api = {
   games: async (): Promise<Game[]> => {
     const [mlb, nba, nhl] = await Promise.all([
@@ -204,7 +204,6 @@ export const api = {
     cacheGames(all);
     return all;
   },
-
   bestBets: async (): Promise<BestBet[]> => {
     const today = new Date().toISOString().split('T')[0];
     const { data } = await supabase
@@ -214,7 +213,6 @@ export const api = {
       .order('confidence', { ascending: false });
     return data || [];
   },
-
   lines: async (gameId: string): Promise<LineMovement[]> => {
     const { data } = await supabase
       .from('lines')
@@ -223,13 +221,9 @@ export const api = {
       .order('recorded_at');
     return data || [];
   },
-
   news: async (): Promise<NewsItem[]> => {
     const live = await fetchEspnNews();
-    if (live.length > 0) {
-      cacheNews(live);
-      return live;
-    }
+    if (live.length > 0) { cacheNews(live); return live; }
     const { data } = await supabase
       .from('news_items')
       .select('*')
@@ -237,12 +231,10 @@ export const api = {
       .limit(10);
     return data || [];
   },
-
   weather: async (): Promise<WeatherData[]> => {
     return fetchWeather();
   },
-
-  history: async (): Promise<any[]> => {
+  history: async (): Promise<BestBet[]> => {
     const { data } = await supabase
       .from('best_bets')
       .select('*')
@@ -251,7 +243,6 @@ export const api = {
       .limit(20);
     return data || [];
   },
-
   parlays: async (): Promise<Parlay[]> => {
     const today = new Date().toISOString().split('T')[0];
     const { data } = await supabase
