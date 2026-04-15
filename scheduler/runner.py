@@ -77,6 +77,16 @@ async def run_all_jobs():
     )
     logger.info("All jobs completed at %s", datetime.utcnow().isoformat())
 
+        # Run the v2.0 scoring engine after data fetch
+    try:
+        from backend.app.core.supabase_client import get_supabase_client
+        from backend.app.services.scoring_engine import generate_picks
+        supabase = get_supabase_client()
+        picks = generate_picks(supabase)
+        logger.info("Scoring engine produced %d picks", len(picks))
+    except Exception as e:
+        logger.error("Scoring engine failed: %s", e)
+
 
 # ── scheduler setup ──────────────────────────────────────────────────────
 def start_scheduler():
