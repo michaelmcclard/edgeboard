@@ -548,6 +548,13 @@ export default function App() {
           </div>
         )}
 
+              {/* ===== SPORTSBOOK SECTION ===== */}
+        <div className="lg:col-span-3 mt-2">
+          <div className="border border-edge-green/20 rounded-xl p-4 bg-edge-card/50">
+            <Sportsbook bets={bets} />
+          </div>
+        </div>
+
       <Card title="TODAY'S GAMES" icon={<BarChart3 size={16} className="text-edge-green" />} className="lg:col-span-2">
         {gamesLoading ? <div className="text-center text-edge-muted">Loading...</div>
         : games.length === 0 ? <div className="text-center text-edge-muted">No games today</div>
@@ -603,12 +610,6 @@ export default function App() {
         )}
       </Card>
 
-              {/* ===== SPORTSBOOK SECTION ===== */}
-        <div className="lg:col-span-3 mt-2">
-          <div className="border border-edge-green/20 rounded-xl p-4 bg-edge-card/50">
-            <Sportsbook bets={bets} />
-          </div>
-        </div>
       <div className="text-center text-[10px] text-edge-muted mt-6">
         EdgeBoard v3.0 | Full Game Cards: ML • Run Line • Total • F5 • Props | Weather • Umpire • Bullpen • Park Factor | Data refreshes every 60s | Last: {lastRefresh.toLocaleTimeString()} | Not financial advice
       </div>
