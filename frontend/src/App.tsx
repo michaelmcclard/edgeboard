@@ -44,7 +44,7 @@ function SportBadge({ sport }: { sport: string }) {
     NHL: "bg-blue-900/40 text-blue-400",
     NFL: "bg-green-900/40 text-green-400",
   };
-  return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${colors[sport] || "bg-gray-800 text-gray-400"}`}>{sport}</span>;
+  return <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${colors[sport] || "bg-gray-800 text-gray-400"}`}>{sport}</span>;
 }
 
 function BetTypeBadge({ type }: { type: string }) {
@@ -60,26 +60,33 @@ function BetTypeBadge({ type }: { type: string }) {
     first_5: "bg-teal-900/40 text-teal-400",
   };
   const labels: Record<string, string> = {
-    moneyline: 'MONEYLINE', spread: 'SPREAD', total: 'TOTAL', 'over/under': 'TOTAL',
-    player_prop: 'PLAYER PROP', prop: 'PROP', run_line: 'RUN LINE', puck_line: 'PUCK LINE', first_5: 'FIRST 5',
+    moneyline: 'MONEYLINE',
+    spread: 'SPREAD',
+    total: 'TOTAL',
+    'over/under': 'TOTAL',
+    player_prop: 'PLAYER PROP',
+    prop: 'PROP',
+    run_line: 'RUN LINE',
+    puck_line: 'PUCK LINE',
+    first_5: 'FIRST 5',
   };
-  return <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${colors[type] || "bg-gray-800 text-gray-400"}`}>{labels[type] || type}</span>;
+  return <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${colors[type] || "bg-gray-800 text-gray-400"}`}>{labels[type] || type}</span>;
 }
 
 function PitcherCard({ pitcher, label }: { pitcher: PitcherStats; label: string }) {
   if (!pitcher?.confirmed) return null;
   return (
-    <div className="bg-edge-bg/50 rounded p-2 text-[10px]">
-      <div className="text-edge-muted mb-1">{label}</div>
-      <div className="text-white font-bold text-xs">{pitcher.name} <span className="text-edge-muted">({pitcher.hand})</span></div>
-      <div className="flex gap-2 mt-1 text-edge-muted">
-        <span>ERA <span className="text-white">{pitcher.era.toFixed(2)}</span></span>
-        <span>WHIP <span className="text-white">{pitcher.whip.toFixed(2)}</span></span>
-        <span>K/9 <span className="text-white">{pitcher.kPer9.toFixed(1)}</span></span>
-        <span>IP <span className="text-white">{pitcher.ip.toFixed(0)}</span></span>
+    <div className="bg-edge-card/50 rounded p-2 border border-edge-border/30">
+      <div className="text-[9px] text-edge-muted uppercase mb-1">{label}</div>
+      <div className="text-xs font-bold text-white">{pitcher.name} <span className="text-edge-muted">({pitcher.hand})</span></div>
+      <div className="flex gap-2 mt-1 text-[10px]">
+        <span>ERA <span className="text-white font-bold">{pitcher.era.toFixed(2)}</span></span>
+        <span>WHIP <span className="text-white font-bold">{pitcher.whip.toFixed(2)}</span></span>
+        <span>K/9 <span className="text-white font-bold">{pitcher.kPer9.toFixed(1)}</span></span>
+        <span>IP <span className="text-white font-bold">{pitcher.ip.toFixed(0)}</span></span>
       </div>
       {pitcher.last3 && pitcher.last3.length > 0 && (
-        <div className="mt-1 text-edge-muted">Last 3: {pitcher.last3.map(s => `${s.ip}IP/${s.er}ER/${s.k}K`).join(', ')}</div>
+        <div className="text-[9px] text-edge-muted mt-1">Last 3: {pitcher.last3.map(s => `${s.ip}IP/${s.er}ER/${s.k}K`).join(', ')}</div>
       )}
     </div>
   );
@@ -88,13 +95,13 @@ function PitcherCard({ pitcher, label }: { pitcher: PitcherStats; label: string 
 function GoalieCard({ goalie, label }: { goalie: GoalieStats; label: string }) {
   if (!goalie?.confirmed) return null;
   return (
-    <div className="bg-edge-bg/50 rounded p-2 text-[10px]">
-      <div className="text-edge-muted mb-1">{label}</div>
-      <div className="text-white font-bold text-xs">{goalie.name}</div>
-      <div className="flex gap-2 mt-1 text-edge-muted">
-        <span>SV% <span className="text-white">{(goalie.savePct * 100).toFixed(1)}%</span></span>
-        <span>GAA <span className="text-white">{goalie.gaa.toFixed(2)}</span></span>
-        <span>W-L <span className="text-white">{goalie.wins}-{goalie.losses}</span></span>
+    <div className="bg-edge-card/50 rounded p-2 border border-edge-border/30">
+      <div className="text-[9px] text-edge-muted uppercase mb-1">{label}</div>
+      <div className="text-xs font-bold text-white">{goalie.name}</div>
+      <div className="flex gap-2 mt-1 text-[10px]">
+        <span>SV% <span className="text-white font-bold">{(goalie.savePct * 100).toFixed(1)}%</span></span>
+        <span>GAA <span className="text-white font-bold">{goalie.gaa.toFixed(2)}</span></span>
+        <span>W-L <span className="text-white font-bold">{goalie.wins}-{goalie.losses}</span></span>
       </div>
     </div>
   );
@@ -102,51 +109,36 @@ function GoalieCard({ goalie, label }: { goalie: GoalieStats; label: string }) {
 
 function BetCard({ b }: { b: BestBet }) {
   return (
-    <div className="bg-edge-card border border-edge-border rounded-lg p-3 space-y-2">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Badge value={b.confidence} />
-          <span className="text-white font-bold text-sm">{b.pick}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {b.recommendation && <RecommendationBadge rec={b.recommendation} />}
-          <BetTypeBadge type={b.bet_type} />
-          {b.data_confidence && <DataConfidenceBadge level={b.data_confidence} />}
-        </div>
+    <div className="bg-edge-card rounded-lg border border-edge-border p-3 mb-3">
+      <div className="text-sm font-bold text-white mb-1">{b.pick}</div>
+      <div className="flex gap-2 mb-2 flex-wrap">
+        {b.recommendation && <RecommendationBadge rec={b.recommendation} />}
+        {b.data_confidence && <DataConfidenceBadge level={b.data_confidence} />}
       </div>
-      <div className="text-[11px] text-edge-muted flex gap-3 flex-wrap">
-        <span>Edge: <span className="text-edge-green">+{b.edge_pct}%</span></span>
-        <span>{b.best_book}</span>
+      <div className="text-xs text-edge-muted mb-2">
+        <span className="text-edge-green font-bold">Edge:</span> +{b.edge_pct}% &nbsp; {b.best_book}
       </div>
       {b.weather_detail && (
-        <div className="text-[10px] text-blue-400 bg-blue-900/20 rounded px-2 py-1 flex items-center gap-1">
-          <Cloud size={10} /> {b.weather_detail}
-        </div>
+        <div className="text-[10px] text-cyan-400 mb-1">{b.weather_detail}</div>
       )}
       {b.umpire_detail && (
-        <div className="text-[10px] text-amber-400 bg-amber-900/20 rounded px-2 py-1 flex items-center gap-1">
-          <Shield size={10} /> {b.umpire_detail}
-        </div>
+        <div className="text-[10px] text-yellow-400 mb-1">{b.umpire_detail}</div>
       )}
       {b.bullpen_detail && (
-        <div className="text-[10px] text-purple-400 bg-purple-900/20 rounded px-2 py-1 flex items-center gap-1">
-          <Target size={10} /> {b.bullpen_detail}
-        </div>
+        <div className="text-[10px] text-orange-400 mb-1">{b.bullpen_detail}</div>
       )}
       {b.matchup_detail && (
-        <div className="text-[10px] text-edge-muted bg-edge-bg/50 rounded px-2 py-1">
-          {b.matchup_detail}
-        </div>
+        <div className="text-[10px] text-edge-muted mb-2">{b.matchup_detail}</div>
       )}
-      <div className="text-xs text-gray-400 leading-relaxed">{b.rationale}</div>
+      <div className="text-xs text-gray-300 leading-relaxed">{b.rationale}</div>
       {(b.home_pitcher || b.away_pitcher) && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 mt-2">
           {b.away_pitcher && <PitcherCard pitcher={b.away_pitcher} label="AWAY SP" />}
           {b.home_pitcher && <PitcherCard pitcher={b.home_pitcher} label="HOME SP" />}
         </div>
       )}
       {(b.home_goalie || b.away_goalie) && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2 mt-2">
           {b.away_goalie && <GoalieCard goalie={b.away_goalie} label="AWAY G" />}
           {b.home_goalie && <GoalieCard goalie={b.home_goalie} label="HOME G" />}
         </div>
@@ -155,12 +147,136 @@ function BetCard({ b }: { b: BestBet }) {
   );
 }
 
+function generateSynopsis(b: BestBet): string {
+  const pick = b.pick;
+  const edge = b.edge_pct;
+  const sport = b.sport;
+  const betType = b.bet_type;
+  const hp = b.home_pitcher;
+  const ap = b.away_pitcher;
+  const hg = b.home_goalie;
+  const ag = b.away_goalie;
+  const wx = b.weather_detail || '';
+  const ump = b.umpire_detail || '';
+  const matchup = b.matchup_detail || '';
+
+  // Extract team names from matchup_detail or pick
+  const isOver = pick.toLowerCase().includes('over');
+  const isUnder = pick.toLowerCase().includes('under');
+  const isML = betType === 'moneyline';
+  const isRL = betType === 'run_line' || betType === 'puck_line' || betType === 'spread';
+  const isTotal = betType === 'total' || betType === 'first_5';
+  const isProp = betType === 'player_prop';
+  const isF5 = betType === 'first_5';
+
+  // MLB STRIKEOUT PROPS
+  if (sport === 'MLB' && isProp && pick.toLowerCase().includes('strikeout')) {
+    const pitcher = hp?.confirmed ? hp : ap?.confirmed ? ap : null;
+    if (pitcher) {
+      const kRate = matchup.match(/(\d+\.\d+)%/);
+      const kRateStr = kRate ? kRate[1] + '%' : 'elevated';
+      const avgK = pitcher.last3.length > 0 ? (pitcher.last3.reduce((s, x) => s + x.k, 0) / pitcher.last3.length).toFixed(0) : null;
+      const recentStr = avgK ? `averaging ${avgK} Ks per outing in his last ${pitcher.last3.length} starts` : `posting elite strikeout numbers this season`;
+      const domeStr = wx.toLowerCase().includes('dome') ? ' The dome environment neutralizes any weather concerns.' : '';
+      return `${pitcher.name} has been dominant on the mound, ${recentStr} with a ${pitcher.kPer9.toFixed(1)} K/9 rate through ${pitcher.ip.toFixed(0)} innings. He draws a lineup that strikes out at a ${kRateStr} clip, creating one of the sharpest K props on today's board.${domeStr}`;
+    }
+  }
+
+  // MLB MONEYLINE
+  if (sport === 'MLB' && isML) {
+    const fav = hp && ap ? (hp.era < ap.era ? hp : ap) : hp || ap;
+    const dog = hp && ap ? (hp.era < ap.era ? ap : hp) : null;
+    if (fav && dog) {
+      const bpInfo = b.bullpen_detail || '';
+      const bpMatch = bpInfo.match(/Home BP ERA: ([\d.]+).*Away BP ERA: ([\d.]+)/);
+      const bpStr = bpMatch ? ` The bullpen edge backs it up at ${bpMatch[1]} vs ${bpMatch[2]} ERA.` : '';
+      return `This is a clear pitching mismatch. ${fav.name} (${fav.era.toFixed(2)} ERA, ${fav.kPer9.toFixed(1)} K/9) has been significantly sharper than ${dog.name} (${dog.era.toFixed(2)} ERA) on the season, and the ${edge.toFixed(1)}% edge reflects that gap.${bpStr}`;
+    }
+  }
+
+  // MLB RUN LINE
+  if (sport === 'MLB' && isRL) {
+    const fav = hp && ap ? (hp.era < ap.era ? hp : ap) : hp || ap;
+    if (fav) {
+      const avgIP = fav.last3.length > 0 ? (fav.last3.reduce((s, x) => s + x.ip, 0) / fav.last3.length).toFixed(1) : '5+';
+      return `The run line is in play because ${fav.name} has been going deep into games, averaging ${avgIP} innings over his last ${fav.last3.length} starts while keeping runs off the board. When your ace is pitching into the 6th with a low ERA, covering -1.5 becomes much more realistic.`;
+    }
+  }
+
+  // MLB TOTAL / F5
+  if (sport === 'MLB' && (isTotal || isF5)) {
+    const dir = isOver ? 'over' : 'under';
+    const parkMatch = matchup.match(/PF: ([\d.]+)/);
+    const parkFactor = parkMatch ? parseFloat(parkMatch[1]) : 1.0;
+    if (isF5) {
+      return `The first 5 innings isolate the starters and strip out bullpen variance. With ${hp?.name || 'the home starter'} and ${ap?.name || 'the away starter'} both on the mound, the F5 ${dir} is the cleaner play. Combined ERA and K-rate point to a controlled early game.`;
+    }
+    if (dir === 'over' && parkFactor >= 1.05) {
+      return `This game is set in a hitter-friendly environment with a park factor of ${parkFactor.toFixed(2)}, and the pitching matchup doesn't inspire confidence on either side. When you combine elevated HR rates with warm weather and average-to-below arms, overs tend to cash.`;
+    }
+    if (dir === 'under') {
+      return `Two quality arms on the mound today with a combined profile that suppresses offense. The park plays neutral-to-pitcher-friendly, and neither lineup has the kind of power to overcome elite stuff. This total looks inflated.`;
+    }
+  }
+
+  // NHL MONEYLINE
+  if (sport === 'NHL' && isML) {
+    const better = hg && ag ? (hg.savePct > ag.savePct ? hg : ag) : hg || ag;
+    const worse = hg && ag ? (hg.savePct > ag.savePct ? ag : hg) : null;
+    if (better && worse) {
+      return `Goaltending wins hockey games, and there's a clear edge here. ${better.name} is posting a ${(better.savePct * 100).toFixed(1)}% save rate with a ${better.gaa.toFixed(2)} GAA, significantly outperforming ${worse.name} (${(worse.savePct * 100).toFixed(1)}% SV, ${worse.gaa.toFixed(2)} GAA). That kind of gap between the pipes tilts this matchup.`;
+    }
+  }
+
+  // NHL PUCK LINE
+  if (sport === 'NHL' && isRL) {
+    return `The goaltending mismatch is wide enough to consider the puck line. When one side has a clear advantage in net and recent form backs it up, -1.5 becomes viable in a sport where empty-net goals frequently seal the cover.`;
+  }
+
+  // NHL TOTAL
+  if (sport === 'NHL' && isTotal) {
+    if (isUnder && hg && ag) {
+      return `Both goalies are dialed in right now, with recent save percentages that suppress scoring. When two hot netminders meet, unders hit at an elevated rate. The combined GAA tells the story here.`;
+    }
+    if (isOver) {
+      return `Neither goalie is stopping pucks consistently right now, and the recent form shows leaky defense on both sides. This has the makings of a high-event, back-and-forth game.`;
+    }
+  }
+
+  // NHL SAVE PROP
+  if (sport === 'NHL' && isProp) {
+    const goalie = hg?.confirmed ? hg : ag?.confirmed ? ag : null;
+    if (goalie) {
+      return `${goalie.name} has been a wall recently, posting a ${(goalie.savePct * 100).toFixed(1)}% save rate on the season. He's seeing heavy volume and converting at an elite clip. The over on saves is one of the sharper goalie props available tonight.`;
+    }
+  }
+
+  // NBA
+  if (sport === 'NBA' && isML) {
+    return `The spread and defensive matchup data both favor this side. When one team allows significantly more points per game and the pace of play aligns, the moneyline becomes a high-value play at current odds.`;
+  }
+  if (sport === 'NBA' && isRL) {
+    return `The spread is backed by a meaningful defensive gap between these two teams. The pace and scoring environment project a comfortable margin, making the points worth taking at this number.`;
+  }
+  if (sport === 'NBA' && isTotal) {
+    const dir = isOver ? 'over' : 'under';
+    return dir === 'over'
+      ? `Both defenses rank in the bottom tier of the league in points allowed, and the pace of play pushes possessions higher than average. This total looks too low for two teams that struggle to get stops.`
+      : `This is a grind-it-out matchup between two slower-paced teams with competent defenses. The combined tempo drags the scoring projection well below the posted line.`;
+  }
+  if (sport === 'NBA' && isProp) {
+    return `The defensive matchup creates a scoring environment that favors this team total. When you face a bottom-tier defense that hemorrhages points, the over on team scoring is one of the highest-percentage plays available.`;
+  }
+
+  // Fallback
+  return b.rationale.length > 200 ? b.rationale.substring(0, 200) + '...' : b.rationale;
+}
+
 function Card({ title, icon, children, className = "" }: { title: string; icon: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-edge-card border border-edge-border rounded-xl p-4 ${className}`}>
-      <div className="flex items-center gap-2 mb-3">
-        {icon}
-        <h2 className="text-white font-bold text-sm">{title}</h2>
+    <div className={`bg-edge-card rounded-lg border border-edge-border p-4 ${className}`}>
+      <div className="flex items-center gap-2 mb-3">{icon}
+        <h2 className="text-sm font-bold text-white">{title}</h2>
       </div>
       {children}
     </div>
@@ -169,7 +285,6 @@ function Card({ title, icon, children, className = "" }: { title: string; icon: 
 
 function LeagueSection({ sport, label, color, bets }: { sport: string; label: string; color: string; bets: BestBet[] }) {
   if (bets.length === 0) return null;
-  // Group by game_id
   const gameGroups = new Map<string, BestBet[]>();
   bets.forEach(b => {
     const gid = b.game_id;
@@ -178,17 +293,11 @@ function LeagueSection({ sport, label, color, bets }: { sport: string; label: st
   });
   return (
     <div className="mb-6">
-      <div className={`flex items-center gap-2 mb-3 pb-2 border-b border-edge-border`}>
-        <SportBadge sport={sport} />
-        <span className={`text-sm font-bold ${color}`}>{label}</span>
-        <span className="text-xs text-edge-muted">({bets.length} picks across {gameGroups.size} games)</span>
-      </div>
+      <div className={`text-lg font-bold mb-3 ${color}`}>{label} <span className="text-sm text-edge-muted font-normal">({bets.length} picks across {gameGroups.size} games)</span></div>
       {Array.from(gameGroups.entries()).map(([gid, gameBets]) => (
         <div key={gid} className="mb-4">
-          <div className="text-[10px] text-edge-muted uppercase tracking-wider mb-2 px-1">Game {gid}</div>
-          <div className="space-y-2">
-            {gameBets.map((b) => <BetCard key={b.id} b={b} />)}
-          </div>
+          <div className="text-xs text-edge-muted mb-2 uppercase">Game {gid}</div>
+          {gameBets.map((b) => <BetCard key={b.id} b={b} />)}
         </div>
       ))}
     </div>
@@ -223,119 +332,122 @@ export default function App() {
   const mlbBets = bets.filter(b => b.sport === 'MLB');
   const nbaBets = bets.filter(b => b.sport === 'NBA');
   const nhlBets = bets.filter(b => b.sport === 'NHL');
-    const top5 = [...bets].sort((a, b) => (b.edge_pct || 0) - (a.edge_pct || 0)).slice(0, 5);
-  const betCount = { ml: bets.filter(b => b.bet_type === 'moneyline').length, rl: bets.filter(b => b.bet_type === 'run_line' || b.bet_type === 'puck_line' || b.bet_type === 'spread').length, tot: bets.filter(b => b.bet_type === 'total' || b.bet_type === 'first_5').length, prop: bets.filter(b => b.bet_type === 'player_prop').length };
+  const top5 = [...bets].sort((a, b) => (b.edge_pct || 0) - (a.edge_pct || 0)).slice(0, 5);
+  const betCount = {
+    ml: bets.filter(b => b.bet_type === 'moneyline').length,
+    rl: bets.filter(b => b.bet_type === 'run_line' || b.bet_type === 'puck_line' || b.bet_type === 'spread').length,
+    tot: bets.filter(b => b.bet_type === 'total' || b.bet_type === 'first_5').length,
+    prop: bets.filter(b => b.bet_type === 'player_prop').length
+  };
 
   return (
-    <div className="min-h-screen bg-edge-bg text-white p-3 space-y-3">
-      <header className="flex items-center justify-between">
+    <div className="min-h-screen bg-edge-bg text-edge-muted p-4 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-black tracking-tight text-edge-green">EDGEBOARD</h1>
-          <p className="text-[10px] text-edge-muted">FULL GAME CARDS | ML • RUN LINE • TOTAL • F5 • PROPS • {new Date().toLocaleDateString()}</p>
+          <h1 className="text-2xl font-black text-edge-green tracking-tight">EDGEBOARD</h1>
+          <p className="text-xs text-edge-muted">FULL GAME CARDS | ML • RUN LINE • TOTAL • F5 • PROPS • {new Date().toLocaleDateString()}</p>
         </div>
-        <button onClick={() => { refreshGames(); refreshNews(); refreshWeather(); setLastRefresh(new Date()); }} className="text-edge-muted hover:text-white transition" title="Refresh data">
-          <RefreshCw size={16} />
-        </button>
-      </header>
-
-        {/* TOP 5 BETS OF THE DAY */}
-        {top5.length > 0 && (
-          <div className="mb-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Trophy size={18} className="text-yellow-400" />
-              <h2 className="text-sm font-bold uppercase tracking-wider text-yellow-400">Top 5 Bets of the Day</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-              {top5.map((b, i) => (
-                <div key={b.id} className="bg-edge-card border border-yellow-800/40 rounded-lg p-3 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 bg-yellow-500/20 text-yellow-300 text-[10px] font-bold px-2 py-0.5 rounded-bl">#{i + 1}</div>
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <SportBadge sport={b.sport} />
-                    <BetTypeBadge type={b.bet_type} />
-                  </div>
-                  <div className="text-white font-bold text-sm mb-1">{b.pick}</div>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <Badge value={b.edge_pct || 0} />
-                    <span className="text-edge-green text-xs font-semibold">+{b.edge_pct}%</span>
-                  </div>
-                  <p className="text-edge-muted text-[11px] leading-snug mb-1.5">{b.rationale}</p>
-                  <div className="text-[10px] text-edge-muted">{b.matchup_detail}</div>
-                  {b.weather_detail && <div className="text-[10px] text-blue-400 mt-1">{b.weather_detail}</div>}
-                  {b.umpire_detail && <div className="text-[10px] text-purple-400 mt-0.5">{b.umpire_detail}</div>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <Card title="TODAY'S GAMES" icon={<BarChart3 size={14} className="text-edge-green" />} className="lg:col-span-2">
-          {gamesLoading ? <p className="text-edge-muted text-xs">Loading...</p> : games.length === 0 ? <p className="text-edge-muted text-xs">No games today</p> : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {games.map((g) => (
-                <div key={g.id} className="bg-edge-bg rounded p-2 text-[11px]">
-                  <div className="flex justify-between"><span className="text-white font-bold">{g.away_team}</span> <span className="text-edge-muted">@</span> <span className="text-white font-bold">{g.home_team}</span></div>
-                  <div className="flex justify-between text-edge-muted mt-1">
-                    <span>{g.away_score ?? "-"} – {g.home_score ?? "-"}</span>
-                    <span><SportBadge sport={g.sport} /> {g.status === "scheduled" ? new Date(g.game_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : g.status}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <Card title="WEATHER" icon={<Cloud size={14} className="text-blue-400" />}>
-          {weather.length === 0 ? <p className="text-edge-muted text-xs">No data</p> : (
-            <div className="space-y-2">
-              {weather.map((w, i) => (
-                <div key={i} className="bg-edge-bg rounded p-2 text-[11px]">
-                  <div className="text-white font-bold">{w.impact_text || w.condition}</div>
-                  <div className="text-edge-muted">{w.condition} • {w.temp_f}°F • {w.wind_mph}mph</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+        <button onClick={() => { refreshGames(); refreshNews(); refreshWeather(); setLastRefresh(new Date()); }} className="text-edge-muted hover:text-white transition" title="Refresh data"><RefreshCw size={16} /></button>
       </div>
 
-      {/* BET TYPE SUMMARY BAR */}
-      {bets.length > 0 && (
-        <div className="bg-edge-card border border-edge-border rounded-lg p-2 flex gap-4 text-[10px] justify-center flex-wrap">
-          <span className="text-purple-400">ML: {betCount.ml}</span>
-          <span className="text-indigo-400">Run/Puck/Spread: {betCount.rl}</span>
-          <span className="text-yellow-400">Totals/F5: {betCount.tot}</span>
-          <span className="text-pink-400">Props: {betCount.prop}</span>
-          <span className="text-white font-bold">Total: {bets.length} picks</span>
+      {/* TOP 5 BETS OF THE DAY */}
+      {top5.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-lg font-bold text-edge-green mb-3 flex items-center gap-2"><Trophy size={18} /> Top 5 Bets of the Day</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {top5.map((b, i) => (
+              <div key={b.id} className="bg-edge-card rounded-lg border border-edge-border p-3 relative">
+                <div className="absolute -top-2 -right-2 bg-edge-green text-black text-[10px] font-black px-1.5 py-0.5 rounded">#{i + 1}</div>
+                <div className="flex gap-1.5 mb-2 flex-wrap"><SportBadge sport={b.sport} /> <BetTypeBadge type={b.bet_type} /></div>
+                <div className="text-sm font-bold text-white mb-2">{b.pick}</div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Badge value={b.confidence} />
+                  <span className="text-edge-green font-bold text-xs">+{b.edge_pct}%</span>
+                </div>
+                <p className="text-[11px] text-gray-300 leading-relaxed mb-2">{generateSynopsis(b)}</p>
+                <div className="text-[10px] text-edge-muted">{b.matchup_detail}</div>
+                {b.weather_detail && <div className="text-[10px] text-cyan-400 mt-1">{b.weather_detail}</div>}
+                {b.umpire_detail && <div className="text-[10px] text-yellow-400 mt-1">{b.umpire_detail}</div>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      <div className="flex gap-1 bg-edge-card border border-edge-border rounded-lg p-1">
+      <Card title="TODAY'S GAMES" icon={<BarChart3 size={16} className="text-edge-green" />} className="lg:col-span-2">
+        {gamesLoading ? <div className="text-center text-edge-muted">Loading...</div>
+        : games.length === 0 ? <div className="text-center text-edge-muted">No games today</div>
+        : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            {games.map((g) => (
+              <div key={g.id} className="bg-edge-bg rounded p-2 flex items-center justify-between text-xs">
+                <span className="font-medium text-white">{g.away_team} <span className="text-edge-muted">@</span> {g.home_team}</span>
+                <span className="flex items-center gap-2">
+                  {g.away_score ?? "-"} – {g.home_score ?? "-"} <span className="text-edge-muted">{g.status === "scheduled" ? new Date(g.game_time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : g.status}</span>
+                  <SportBadge sport={g.sport} />
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card title="WEATHER" icon={<Cloud size={16} className="text-cyan-400" />}>
+        {weather.length === 0 ? <div className="text-center text-edge-muted">No data</div>
+        : (
+          <div className="space-y-2">
+            {weather.map((w, i) => (
+              <div key={i} className="flex items-center justify-between text-xs">
+                <span className="text-white font-medium">{w.impact_text || w.condition}</span>
+                <span className="text-edge-muted">{w.condition} • {w.temp_f}°F • {w.wind_mph}mph</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* BET TYPE SUMMARY BAR */}
+      {bets.length > 0 && (
+        <div className="bg-edge-card rounded-lg border border-edge-border p-3 my-4 flex flex-wrap gap-4 text-xs">
+          <span>ML: <span className="text-white font-bold">{betCount.ml}</span></span>
+          <span>Run/Puck/Spread: <span className="text-white font-bold">{betCount.rl}</span></span>
+          <span>Totals/F5: <span className="text-white font-bold">{betCount.tot}</span></span>
+          <span>Props: <span className="text-white font-bold">{betCount.prop}</span></span>
+          <span>Total: <span className="text-edge-green font-bold">{bets.length} picks</span></span>
+        </div>
+      )}
+
+      <div className="flex gap-2 mb-4">
         {(["bets", "parlays", "history"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`flex-1 py-1.5 text-xs font-semibold uppercase rounded ${tab === t ? "bg-edge-green/20 text-edge-green" : "text-edge-muted hover:text-white"}`}>{t}</button>
         ))}
       </div>
 
       {tab === "bets" && (
-        <Card title="FULL GAME CARDS — ALL BET TYPES" icon={<Zap size={14} className="text-edge-green" />} className="">
-          {betsLoading ? <p className="text-edge-muted text-xs">Analyzing pitcher stats, goalie matchups, bullpens, weather, and park factors...</p> : bets.length === 0 ? <p className="text-edge-muted text-xs">No bets today</p> : (
+        <Card title="FULL GAME CARDS — ALL BET TYPES" icon={<Target size={16} className="text-edge-green" />} className="">
+          {betsLoading ? <div className="text-center text-edge-muted">Analyzing pitcher stats, goalie matchups, bullpens, weather, and park factors...</div>
+          : bets.length === 0 ? <div className="text-center text-edge-muted">No bets today</div>
+          : (
             <div>
-              <LeagueSection sport="MLB" label="MAJOR LEAGUE BASEBALL" color="text-red-400" bets={mlbBets} />
-              <LeagueSection sport="NBA" label="NATIONAL BASKETBALL ASSOCIATION" color="text-orange-400" bets={nbaBets} />
-              <LeagueSection sport="NHL" label="NATIONAL HOCKEY LEAGUE" color="text-blue-400" bets={nhlBets} />
+              <LeagueSection sport="MLB" label="MLB" color="text-red-400" bets={mlbBets} />
+              <LeagueSection sport="NBA" label="NBA" color="text-orange-400" bets={nbaBets} />
+              <LeagueSection sport="NHL" label="NHL" color="text-blue-400" bets={nhlBets} />
             </div>
           )}
         </Card>
       )}
 
       {tab === "parlays" && (
-        <Card title="PARLAYS" icon={<Trophy size={14} className="text-edge-amber" />}>
-          {parlays.length === 0 ? <p className="text-edge-muted text-xs">No parlays today</p> : (
-            <div className="space-y-2">
+        <Card title="PARLAYS" icon={<Zap size={16} className="text-yellow-400" />}>
+          {parlays.length === 0 ? <div className="text-center text-edge-muted">No parlays today</div>
+          : (
+            <div className="space-y-3">
               {parlays.map((p) => (
-                <div key={p.id} className="bg-edge-bg rounded p-2 text-xs">
-                  <div className="text-white font-bold">{p.num_legs}-Leg Parlay</div>
-                  {p.legs.map((leg, i) => (<div key={i} className="text-edge-muted">• {leg.pick}</div>))}
+                <div key={p.id} className="bg-edge-bg rounded p-3">
+                  <div className="text-sm font-bold text-white mb-1">{p.num_legs}-Leg Parlay</div>
+                  {p.legs.map((leg, i) => (
+                    <div key={i} className="text-xs text-edge-muted">• {leg.pick}</div>
+                  ))}
                 </div>
               ))}
             </div>
@@ -344,37 +456,37 @@ export default function App() {
       )}
 
       {tab === "history" && (
-        <Card title="BET HISTORY" icon={<Target size={14} className="text-edge-green" />}>
-          <p className="text-edge-muted text-xs">No graded bets yet — picks will appear here once settled</p>
+        <Card title="BET HISTORY" icon={<Trophy size={16} className="text-yellow-400" />}>
+          <div className="text-center text-edge-muted text-sm">No graded bets yet — picks will appear here once settled</div>
         </Card>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <Card title="NEWS" icon={<Newspaper size={14} className="text-edge-green" />} className="lg:col-span-2">
-          {news.length === 0 ? <p className="text-edge-muted text-xs">No news</p> : (
-            <div className="space-y-2">
-              {news.map((n, i) => (
-                <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" className="block bg-edge-bg rounded p-2 text-[11px] hover:bg-edge-border/30 transition">
-                  <div className="text-white font-bold">{n.headline}</div>
-                  <div className="text-edge-muted">{n.source} • {n.sport} • {new Date(n.fetched_at).toLocaleDateString()}</div>
-                </a>
-              ))}
-            </div>
-          )}
-        </Card>
+      <Card title="NEWS" icon={<Newspaper size={16} className="text-blue-400" />} className="lg:col-span-2">
+        {news.length === 0 ? <div className="text-center text-edge-muted">No news</div>
+        : (
+          <div className="space-y-2">
+            {news.map((n, i) => (
+              <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" className="block hover:bg-edge-bg/50 rounded p-2 transition">
+                <div className="text-xs font-medium text-white">{n.headline}</div>
+                <div className="text-[10px] text-edge-muted">{n.source} • {n.sport} • {new Date(n.fetched_at).toLocaleDateString()}</div>
+              </a>
+            ))}
+          </div>
+        )}
+      </Card>
 
-        <Card title="ALERTS" icon={<AlertTriangle size={14} className="text-edge-amber" />}>
-          {alerts.length === 0 ? <p className="text-edge-muted text-xs">No alerts</p> : (
-            <div className="space-y-1">
-              {alerts.map((a, i) => <div key={i} className="text-[11px] text-edge-muted">{a}</div>)}
-            </div>
-          )}
-        </Card>
-      </div>
+      <Card title="ALERTS" icon={<AlertTriangle size={16} className="text-yellow-400" />}>
+        {alerts.length === 0 ? <div className="text-center text-edge-muted">No alerts</div>
+        : (
+          <div className="space-y-1">
+            {alerts.map((a, i) => <div key={i} className="text-xs text-yellow-300">{a}</div>)}
+          </div>
+        )}
+      </Card>
 
-      <footer className="text-center text-[10px] text-edge-muted py-2">
+      <div className="text-center text-[10px] text-edge-muted mt-6">
         EdgeBoard v3.0 | Full Game Cards: ML • Run Line • Total • F5 • Props | Weather • Umpire • Bullpen • Park Factor | Data refreshes every 60s | Last: {lastRefresh.toLocaleTimeString()} | Not financial advice
-      </footer>
+      </div>
     </div>
   );
 }
