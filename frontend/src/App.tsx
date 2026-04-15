@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { api, Game, BestBet, NewsItem, WeatherData, Parlay, PitcherStats, GoalieStats, StreakData } from "./api";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { TrendingUp, Zap, Cloud, Newspaper, BarChart3, Trophy, AlertTriangle, RefreshCw, MapPin, Shield, Target, Thermometer, Wind, Lock } from "lucide-react";
-import { useNavState, useFilteredBets, NavBar, GameAccordion, PicksSummary } from "./NavComponents";
 import Sportsbook from './Sportsbook';
 
 function useApi<T>(fn: () => Promise<T>, fallback: T) {
@@ -423,15 +422,12 @@ function StreakTracker({ streak }: { streak: StreakData }) {
 
 export default function App() {
   const { data: games, loading: gamesLoading, refresh: refreshGames } = useApi(api.games, []);
-  const { data: bets, loading: betsLoading } = useApi(api.bestBets, []);
+    const { data: bets } = useApi(api.bestBets, []);
   const { data: news, refresh: refreshNews } = useApi(api.news, []);
   const { data: weather, refresh: refreshWeather } = useApi(api.weather, []);
   const { data: parlays } = useApi(api.parlays, []);
     const { data: streakData } = useApi<StreakData>(api.streakData, { wins: 0, losses: 0, pushes: 0, streak: '0-0', streakType: 'none', streakCount: 0, roi: 0, totalWagered: 0, totalProfit: 0, hasBets: false });
-  const [tab, setTab] = useState<"bets" | "parlays" | "history">("bets");
   const [lastRefresh, setLastRefresh] = useState(new Date());
-    const [navState, setNavState, toggleBetType] = useNavState();
-    const { filtered, gameGroups } = useFilteredBets(bets, navState);
 
   useEffect(() => {
           const interval = setInterval(() => {
@@ -449,16 +445,7 @@ export default function App() {
   if (games.length > 0) alerts.push(`${games.length} games on today's slate`);
   if (bets.length > 0) alerts.push(`${bets.length} total picks across all bet types`);
 
-  const mlbBets = bets.filter(b => b.sport === 'MLB');
-  const nbaBets = bets.filter(b => b.sport === 'NBA');
-  const nhlBets = bets.filter(b => b.sport === 'NHL');
   const top5 = [...bets].sort((a, b) => (b.edge_pct || 0) - (a.edge_pct || 0)).slice(0, 5);
-  const betCount = {
-    ml: bets.filter(b => b.bet_type === 'moneyline').length,
-    rl: bets.filter(b => b.bet_type === 'run_line' || b.bet_type === 'puck_line' || b.bet_type === 'spread').length,
-    tot: bets.filter(b => b.bet_type === 'total' || b.bet_type === 'first_5').length,
-    prop: bets.filter(b => b.bet_type === 'player_prop').length
-  };
 
   const powerParlay = buildPowerParlay(bets);
   return (
@@ -562,70 +549,6 @@ export default function App() {
           </div>
         )}
       </Card>
-
-      {/* BET TYPE SUMMARY BAR */}
-      {bets.length > 0 && (
-        <div className="bg-edge-card rounded-lg border border-edge-border p-3 my-4 flex flex-wrap gap-4 text-xs">
-          <span>ML: <span className="text-white font-bold">{betCount.ml}</span></span>
-          <span>Run/Puck/Spread: <span className="text-white font-bold">{betCount.rl}</span></span>
-          <span>Totals/F5: <span className="text-white font-bold">{betCount.tot}</span></span>
-          <span>Props: <span className="text-white font-bold">{betCount.prop}</span></span>
-          <span>Total: <span className="text-edge-green font-bold">{bets.length} picks</span></span>
-        </div>
-      )}
-
-      <div className="flex gap-2 mb-4">
-        {(["bets", "parlays", "history"] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`flex-1 py-1.5 text-xs font-semibold uppercase rounded ${tab === t ? "bg-edge-green/20 text-edge-green" : "text-edge-muted hover:text-white"}`}>{t}</button>
-        ))}
-      </div>
-
-      {tab === "bets" && (
-            <div>
-      <NavBar bets={bets} navState={navState} setNavState={setNavState} toggleBetType={toggleBetType} />
-      <PicksSummary filtered={filtered} gameGroups={gameGroups} />
-      {betsLoading ? <div className="text-center text-edge-muted p-8">Analyzing pitcher stats, goalie matchups, bullpens, weather, and park factors...</div>
-      : filtered.length === 0 ? <div className="text-center text-edge-muted p-8">No bets match your filters</div>
-      : (
-        <div className="p-3 space-y-2">
-          {Array.from(gameGroups.entries()).map(([gid, gameBets]) => (
-            <GameAccordion
-              key={gid}
-              gameId={gid}
-              gameBets={gameBets}
-              expanded={navState.expandedGames.has(gid)}
-              onToggle={() => { const next = new Set(navState.expandedGames); if (next.has(gid)) next.delete(gid); else next.add(gid); setNavState({ ...navState, expandedGames: next }); }}
-              renderBet={(b) => <BetCard b={b} />}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-      )}
-
-      {tab === "parlays" && (
-        <Card title="PARLAYS" icon={<Zap size={16} className="text-yellow-400" />}>
-          {parlays.length === 0 ? <div className="text-center text-edge-muted">No parlays today</div>
-          : (
-            <div className="space-y-3">
-              {parlays.map((p) => (
-                <div key={p.id} className="bg-edge-bg rounded p-3">
-                  <div className="text-sm font-bold text-white mb-1">{p.num_legs}-Leg Parlay</div>
-                  {p.legs.map((leg, i) => (
-                    <div key={i} className="text-xs text-edge-muted">• {leg.pick}</div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
-
-      {tab === "history" && (
-        <Card title="BET HISTORY" icon={<Trophy size={16} className="text-yellow-400" />}>
-          <div className="text-center text-edge-muted text-sm">No graded bets yet — picks will appear here once settled</div>
-        </Card>
-      )}
 
       <Card title="NEWS" icon={<Newspaper size={16} className="text-blue-400" />} className="lg:col-span-2">
         {news.length === 0 ? <div className="text-center text-edge-muted">No news</div>
