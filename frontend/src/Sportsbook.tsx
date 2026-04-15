@@ -400,6 +400,26 @@ function BetHistory({ bets }: { bets: UserBet[] }) {
   );
 }
 
+
+// CONFIDENCE TIER BADGE
+function getConfidenceTier(confidence: number): { label: string; icon: string; css: string } | null {
+  if (confidence >= 9.7) return { label: 'NUCLEAR', icon: '\u2622\uFE0F', css: 'tier-nuclear' };
+  if (confidence >= 9.3) return { label: 'HIGH VOLTAGE', icon: '\u26A1\u26A1', css: 'tier-high-voltage' };
+  if (confidence >= 8.8) return { label: 'VOLTAGE', icon: '\u26A1', css: 'tier-voltage' };
+  return null;
+}
+
+function ConfidenceTierBadge({ confidence, mobile = false }: { confidence: number; mobile?: boolean }) {
+  const tier = getConfidenceTier(confidence);
+  if (!tier) return null;
+  return (
+    <div className={`tier-badge-vertical ${mobile ? 'tier-badge-mobile' : ''} ${tier.css}`}>
+      <span>{tier.icon}</span>
+      <span>{tier.label}</span>
+    </div>
+  );
+}
+
 // SYNOPSIS GENERATOR — same logic as Top 5 cards
 function generatePickSynopsis(b: BestBet): string {
   const pick = b.pick;
@@ -531,11 +551,11 @@ function PickCard({
   const confColor = (bet.confidence || 0) >= 8 ? 'text-edge-green glow-green' : (bet.confidence || 0) >= 6 ? 'text-edge-amber glow-amber' : 'text-edge-red glow-red';
 
   return (
-    <div className="border border-gray-800 rounded-lg p-3 bg-edge-dark/60 hover:border-gray-700 transition">
+          <div className="relative border border-gray-800 rounded-lg p-3 pl-10 bg-edge-dark/60 hover:border-gray-700 transition overflow-hidden">
+                    <ConfidenceTierBadge confidence={bet.confidence || 0} />
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-            <span className="text-xs bg-gray-800 text-gray-300 px-1.5 py-0.5 rounded uppercase">{bet.sport}</span>
             <span className="text-xs bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded uppercase">{bet.bet_type.replace('_', ' ')}</span>
             {bet.best_book && <span className="text-xs text-edge-muted">{bet.best_book}</span>}
           </div>
