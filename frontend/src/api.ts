@@ -120,6 +120,39 @@ export interface StreakData {
   hasBets: boolean;
 }
 
+export interface BetSlipLeg {
+  id: string;
+  gameId: string;
+  sport: string;
+  homeTeam: string;
+  awayTeam: string;
+  gameTime: string;
+  betType: 'moneyline' | 'spread' | 'total';
+  pick: string;
+  odds: number;
+  line?: number;
+}
+
+export interface UserBet {
+  id: string;
+  date: string;
+  pick: string;
+  sport: string;
+  bet_type: string;
+  result: string | null;
+  units: number;
+  odds: number;
+  profit: number;
+  game_id: string;
+  legs: BetSlipLeg[] | null;
+  total_odds: number;
+  stake: number;
+  potential_payout: number;
+  status: string;
+  created_at: string;
+  settled_at: string | null;
+}
+
 // ============ ESPN HELPERS ============
 const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 const SPORT_MAP: Record<string, string> = {
@@ -964,5 +997,44 @@ export const api = {
       }
     }
     return { wins, losses, pushes, streak: `${wins}-${losses}${pushes > 0 ? `-${pushes}` : ''}`, streakType, streakCount, roi: parseFloat(roi.toFixed(1)), totalWagered, totalProfit, hasBets: true };
+  },
+    placeBet: async (legs: BetSlipLeg[], stake: number, totalOdds: number, payout: number): Promise<UserBet | null> => {
+    const pick = legs.length === 1 ? legs[0].pick : legs.map(l => l.pick).join(' + ');
+    const sport = legs[0].sport;
+    const betType = legs.length === 1 ? legs[0].betType : 'parlay';
+    const { data, error } = await supabase.from('user_bets').insert({
+      date: new Date().toISOString().split('T')[0],
+      pick,
+      sport,
+      bet_type: betType,
+      result: null,
+      units: stake / 100,
+      odds: totalOdds,
+      profit: 0,
+      game_id: legs[0].gameId,
+      legs: legs as any,
+      total_odds: totalOdds,
+      stake,
+      potential_payout: payout,
+      status: 'active',
+    }).select().single();
+    if (error) { console.error('placeBet error', error); return null; }
+    return data as UserBet;
+  },
+  activeBets: async (): Promise<UserBet[]> => {
+    const { data } = await supabase.from('user_bets').select('*').eq('status', 'active').order('created_at', { ascending: false });
+    return (data || []) as UserBet[];
+  },
+  settleBet: async (betId: string, result: 'win' | 'loss' | 'push'): Promise<boolean> => {
+    const { data: bet } = await supabase.from('user_bets').select('*').eq('id', betId).single();
+    if (!bet) return false;
+    let profit = 0;
+    if (result === 'win') {
+      profit = (bet.potential_payout || 0) - (bet.stake || 0);
+    } else if (result === 'loss') {
+      profit = -(bet.stake || 0);
+    }
+    const { error } = await supabase.from('user_bets').update({ result, profit, status: 'settled', settled_at: new Date().toISOString() }).eq('id', betId);
+    return !error;
   },
 };
