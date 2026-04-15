@@ -450,7 +450,7 @@ function StreakTracker({ streak }: { streak: StreakData }) {
 
 export default function App() {
   const { data: games, loading: gamesLoading, refresh: refreshGames } = useApi(api.games, []);
-    const { data: bets } = useApi(api.bestBets, []);
+    const { data: bets } = useApi(api.bestBets, api.cachedBestBets());
   const { data: news, refresh: refreshNews } = useApi(api.news, []);
   const { data: weather, refresh: refreshWeather } = useApi(api.weather, []);
   const { data: parlays } = useApi(api.parlays, []);
