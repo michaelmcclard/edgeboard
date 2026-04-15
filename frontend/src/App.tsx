@@ -77,6 +77,34 @@ function BetTypeBadge({ type }: { type: string }) {
 function PitcherCard({ pitcher, label }: { pitcher: PitcherStats; label: string }) {
   if (!pitcher?.confirmed) return null;
   return (
+
+    // CONFIDENCE TIER BADGE
+function getConfidenceTier(confidence: number): { label: string; icon: string; css: string } | null {
+  if (confidence >= 9.7) return { label: 'NUCLEAR', icon: '\u2622\uFE0F', css: 'tier-nuclear' };
+  if (confidence >= 9.3) return { label: 'HIGH VOLTAGE', icon: '\u26A1\u26A1', css: 'tier-high-voltage' };
+  if (confidence >= 8.8) return { label: 'VOLTAGE', icon: '\u26A1', css: 'tier-voltage' };
+  return null;
+}
+
+function ConfidenceTierBadge({ confidence, mobile = false }: { confidence: number; mobile?: boolean }) {
+  const tier = getConfidenceTier(confidence);
+  if (!tier) return null;
+  return (
+    <div className={`tier-badge-vertical ${mobile ? 'tier-badge-mobile' : ''} ${tier.css}`}>
+      <span>{tier.icon}</span>
+      <span>{tier.label}</span>
+    </div>
+  );
+}
+
+function getParlayTier(legs: BestBet[]): { label: string; icon: string; css: string } | null {
+  if (!legs || legs.length < 3) return null;
+  const allAbove88 = legs.every(l => (l.confidence || 0) >= 8.8);
+  if (allAbove88) return { label: 'NUCLEAR', icon: '\u2622\uFE0F', css: 'tier-nuclear' };
+  const lowestConf = Math.min(...legs.map(l => l.confidence || 0));
+  return getConfidenceTier(lowestConf);
+}
+
     <div className="bg-edge-card/50 rounded p-2 border border-edge-border/30">
       <div className="text-[9px] text-edge-muted uppercase mb-1">{label}</div>
       <div className="text-xs font-bold text-white">{pitcher.name} <span className="text-edge-muted">({pitcher.hand})</span></div>
@@ -465,7 +493,8 @@ export default function App() {
           <h2 className="text-lg font-bold text-edge-green mb-3 flex items-center gap-2"><Trophy size={18} /> Top 5 Bets of the Day</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
             {top5.map((b, i) => (
-              <div key={b.id} className="bg-edge-card rounded-lg border border-edge-border p-3 relative">
+                              <div key={b.id} className="bg-edge-card rounded-lg border border-edge-border p-3 pl-10 relative overflow-hidden">
+                                <ConfidenceTierBadge confidence={b.confidence} mobile />
                 <div className="absolute -top-2 -right-2 bg-edge-green text-black text-[10px] font-black px-1.5 py-0.5 rounded">#{i + 1}</div>
                 <div className="flex gap-1.5 mb-2 flex-wrap"><SportBadge sport={b.sport} /> <BetTypeBadge type={b.bet_type} /></div>
                 <div className="text-sm font-bold text-white mb-2">{b.pick}</div>
@@ -486,7 +515,8 @@ export default function App() {
         {powerParlay && (
           <div className="mb-6">
             <h2 className="text-lg font-bold text-edge-green mb-3 flex items-center gap-2"><Lock size={18} /> Daily Power Parlay</h2>
-            <div className="bg-edge-card rounded-lg border border-edge-border p-4">
+                        <div className="bg-edge-card rounded-lg border border-edge-border p-4 pl-10 relative overflow-hidden">
+                                        {(() => { const t = getParlayTier(powerParlay.legs); return t ? <div className={`tier-badge-vertical ${t.css}`}><span>{t.icon}</span><span>{t.label}</span></div> : null; })()}
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs text-edge-muted">3-Leg • Highest Combined Confidence • Zero Correlation</span>
                 <span className="text-2xl font-bold text-edge-green">+{powerParlay.combinedOdds}</span>
