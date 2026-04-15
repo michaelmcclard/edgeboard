@@ -107,6 +107,19 @@ export interface GameCard {
   bets: BestBet[];
 }
 
+export interface StreakData {
+  wins: number;
+  losses: number;
+  pushes: number;
+  streak: string;
+  streakType: 'W' | 'L' | 'P' | 'none';
+  streakCount: number;
+  roi: number;
+  totalWagered: number;
+  totalProfit: number;
+  hasBets: boolean;
+}
+
 // ============ ESPN HELPERS ============
 const ESPN_BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 const SPORT_MAP: Record<string, string> = {
@@ -927,5 +940,29 @@ export const api = {
   parlays: async (): Promise<Parlay[]> => {
     const { data } = await supabase.from('parlays').select('*').eq('date', new Date().toISOString().split('T')[0]);
     return data || [];
+  },
+    streakData: async (): Promise<StreakData> => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const { data } = await supabase.from('user_bets').select('*').gte('date', thirtyDaysAgo.toISOString().split('T')[0]).order('date', { ascending: false });
+    if (!data || data.length === 0) return { wins: 0, losses: 0, pushes: 0, streak: '0-0', streakType: 'none', streakCount: 0, roi: 0, totalWagered: 0, totalProfit: 0, hasBets: false };
+    const wins = data.filter(b => b.result === 'win').length;
+    const losses = data.filter(b => b.result === 'loss').length;
+    const pushes = data.filter(b => b.result === 'push').length;
+    const totalWagered = data.reduce((s, b) => s + (Number(b.units) || 1) * 100, 0);
+    const totalProfit = data.reduce((s, b) => s + (Number(b.profit) || 0), 0);
+    const roi = totalWagered > 0 ? (totalProfit / totalWagered) * 100 : 0;
+    let streakType: 'W' | 'L' | 'P' | 'none' = 'none';
+    let streakCount = 0;
+    const settled = data.filter(b => b.result === 'win' || b.result === 'loss');
+    if (settled.length > 0) {
+      const first = settled[0].result === 'win' ? 'W' : 'L';
+      streakType = first as 'W' | 'L';
+      for (const b of settled) {
+        if ((b.result === 'win' && first === 'W') || (b.result === 'loss' && first === 'L')) streakCount++;
+        else break;
+      }
+    }
+    return { wins, losses, pushes, streak: `${wins}-${losses}${pushes > 0 ? `-${pushes}` : ''}`, streakType, streakCount, roi: parseFloat(roi.toFixed(1)), totalWagered, totalProfit, hasBets: true };
   },
 };
