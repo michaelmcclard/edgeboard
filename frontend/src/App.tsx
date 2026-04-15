@@ -3,6 +3,7 @@ import { api, Game, BestBet, NewsItem, WeatherData, Parlay, PitcherStats, Goalie
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { TrendingUp, Zap, Cloud, Newspaper, BarChart3, Trophy, AlertTriangle, RefreshCw, MapPin, Shield, Target, Thermometer, Wind, Lock } from "lucide-react";
 import { useNavState, useFilteredBets, NavBar, GameAccordion, PicksSummary } from "./NavComponents";
+import Sportsbook from './Sportsbook';
 
 function useApi<T>(fn: () => Promise<T>, fallback: T) {
   const [data, setData] = useState<T>(fallback);
@@ -649,6 +650,12 @@ export default function App() {
         )}
       </Card>
 
+              {/* ===== SPORTSBOOK SECTION ===== */}
+        <div className="lg:col-span-3 mt-2">
+          <div className="border border-edge-green/20 rounded-xl p-4 bg-edge-card/50">
+            <Sportsbook bets={bets} />
+          </div>
+        </div>
       <div className="text-center text-[10px] text-edge-muted mt-6">
         EdgeBoard v3.0 | Full Game Cards: ML • Run Line • Total • F5 • Props | Weather • Umpire • Bullpen • Park Factor | Data refreshes every 60s | Last: {lastRefresh.toLocaleTimeString()} | Not financial advice
       </div>
