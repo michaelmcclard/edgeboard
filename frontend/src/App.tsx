@@ -223,7 +223,7 @@ export default function App() {
   const mlbBets = bets.filter(b => b.sport === 'MLB');
   const nbaBets = bets.filter(b => b.sport === 'NBA');
   const nhlBets = bets.filter(b => b.sport === 'NHL');
-    const top5 = [...bets].sort((a, b) => (b.composite_score || 0) - (a.composite_score || 0)).slice(0, 5);
+    const top5 = [...bets].sort((a, b) => (b.edge_pct || 0) - (a.edge_pct || 0)).slice(0, 5);
   const betCount = { ml: bets.filter(b => b.bet_type === 'moneyline').length, rl: bets.filter(b => b.bet_type === 'run_line' || b.bet_type === 'puck_line' || b.bet_type === 'spread').length, tot: bets.filter(b => b.bet_type === 'total' || b.bet_type === 'first_5').length, prop: bets.filter(b => b.bet_type === 'player_prop').length };
 
   return (
@@ -255,7 +255,7 @@ export default function App() {
                   </div>
                   <div className="text-white font-bold text-sm mb-1">{b.pick}</div>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <Badge value={b.composite_score || 0} />
+                    <Badge value={b.edge_pct || 0} />
                     <span className="text-edge-green text-xs font-semibold">+{b.edge_pct}%</span>
                   </div>
                   <p className="text-edge-muted text-[11px] leading-snug mb-1.5">{b.rationale}</p>
