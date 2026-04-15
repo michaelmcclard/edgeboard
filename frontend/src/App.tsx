@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { api, Game, BestBet, NewsItem, WeatherData, Parlay, PitcherStats, GoalieStats } from "./api";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { TrendingUp, Zap, Cloud, Newspaper, BarChart3, Trophy, AlertTriangle, RefreshCw, MapPin, Shield, Target, Thermometer, Wind, Lock } from "lucide-react";
+import { useNavState, useFilteredBets, NavBar, GameAccordion, PicksSummary } from "./NavComponents";
 
 function useApi<T>(fn: () => Promise<T>, fallback: T) {
   const [data, setData] = useState<T>(fallback);
@@ -409,6 +410,7 @@ export default function App() {
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
   useEffect(() => {
+      const [navState, setNavState, toggleBetType] = useNavState();  const { filtered, gameGroups } = useFilteredBets(bets, navState);
     const interval = setInterval(() => {
       refreshGames(); refreshNews(); refreshWeather(); setLastRefresh(new Date());
     }, 60000);
@@ -555,17 +557,26 @@ export default function App() {
       </div>
 
       {tab === "bets" && (
-        <Card title="FULL GAME CARDS — ALL BET TYPES" icon={<Target size={16} className="text-edge-green" />} className="">
-          {betsLoading ? <div className="text-center text-edge-muted">Analyzing pitcher stats, goalie matchups, bullpens, weather, and park factors...</div>
-          : bets.length === 0 ? <div className="text-center text-edge-muted">No bets today</div>
-          : (
             <div>
-              <LeagueSection sport="MLB" label="MLB" color="text-red-400" bets={mlbBets} />
-              <LeagueSection sport="NBA" label="NBA" color="text-orange-400" bets={nbaBets} />
-              <LeagueSection sport="NHL" label="NHL" color="text-blue-400" bets={nhlBets} />
-            </div>
-          )}
-        </Card>
+      <NavBar bets={bets} navState={navState} setNavState={setNavState} toggleBetType={toggleBetType} />
+      <PicksSummary filtered={filtered} gameGroups={gameGroups} />
+      {betsLoading ? <div className="text-center text-edge-muted p-8">Analyzing pitcher stats, goalie matchups, bullpens, weather, and park factors...</div>
+      : filtered.length === 0 ? <div className="text-center text-edge-muted p-8">No bets match your filters</div>
+      : (
+        <div className="p-3 space-y-2">
+          {Array.from(gameGroups.entries()).map(([gid, gameBets]) => (
+            <GameAccordion
+              key={gid}
+              gameId={gid}
+              gameBets={gameBets}
+              expanded={navState.expandedGames.has(gid)}
+              onToggle={() => { const next = new Set(navState.expandedGames); if (next.has(gid)) next.delete(gid); else next.add(gid); setNavState({ ...navState, expandedGames: next }); }}
+              renderBet={(b) => <BetCard b={b} />}
+            />
+          ))}
+        </div>
+      )}
+    </div>
       )}
 
       {tab === "parlays" && (
