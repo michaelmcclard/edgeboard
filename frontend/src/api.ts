@@ -937,6 +937,26 @@ async function cacheNews(news: NewsItem[]) {
   try { await supabase.from('news_items').upsert(news, { onConflict: 'id' }); } catch {}
 }
 
+// ============ BEST BETS LOCAL CACHE ============
+const BETS_CACHE_KEY = 'edgeboard_bets_cache';
+const BETS_CACHE_TTL = 1000 * 60 * 30; // 30 min staleness limit
+
+function cacheBestBetsLocal(bets: BestBet[]) {
+  try {
+    localStorage.setItem(BETS_CACHE_KEY, JSON.stringify({ ts: Date.now(), bets }));
+  } catch {}
+}
+
+function getCachedBestBets(): BestBet[] {
+  try {
+    const raw = localStorage.getItem(BETS_CACHE_KEY);
+    if (!raw) return [];
+    const { ts, bets } = JSON.parse(raw);
+    if (Date.now() - ts > BETS_CACHE_TTL) return [];
+    return bets || [];
+  } catch { return []; }
+}
+
 // ============ PUBLIC API ============
 export const api = {
   games: async (): Promise<Game[]> => {
@@ -953,9 +973,9 @@ export const api = {
     ]);
     const mlbBets = await generateMLBFullCards(mlbGames);
     const nhlBets = generateNHLFullCards(nhlGames);
-    return [...mlbBets, ...nbaBets, ...nhlBets];
+    const allBetsResult = [...mlbBets, ...nbaBets, ...nhlBets]; cacheBestBetsLocal(allBetsResult); return allBetsResult;
   },
-  lines: async (gameId: string): Promise<LineMovement[]> => {
+  cachedBestBets: (): BestBet[] => getCachedBestBets(),     lines: async (gameId: string): Promise<LineMovement[]> => {
     const { data } = await supabase.from('lines').select('*').eq('game_id', gameId).order('recorded_at');
     return data || [];
   },
