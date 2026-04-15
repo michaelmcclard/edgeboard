@@ -125,3 +125,178 @@ body {
 .bt-spread { border-left: 3px solid #7b5ea7; }
 .bt-total { border-left: 3px solid #ffb300; }
 .bt-prop { border-left: 3px solid #00ff88; }
+
+/* ===== PREMIUM VISUAL OVERRIDES ===== */
+
+/* Main header - glass effect with gradient */
+#root > h1 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  background: linear-gradient(135deg, #00e5ff, #00ff88);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 2.25rem;
+  text-shadow: none;
+}
+
+/* Subtitle styling */
+#root > h1 + div {
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.1em;
+  color: #6b6b8a;
+  font-size: 0.7rem;
+}
+
+/* Header area glass backdrop */
+#root > h1,
+#root > h1 + div {
+  position: relative;
+}
+
+/* Top 5 section title */
+#root h2 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Card containers - glass morphism */
+.bg-edge-card {
+  background: rgba(15, 15, 26, 0.8) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(26, 26, 46, 0.6) !important;
+  transition: all 0.2s ease;
+}
+
+.bg-edge-card:hover {
+  border-color: rgba(0, 229, 255, 0.15) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(0, 229, 255, 0.08);
+}
+
+/* Top 5 bet cards - green glow top border */
+.border-edge-border.rounded-lg {
+  border-top: 2px solid rgba(0, 255, 136, 0.35) !important;
+  box-shadow: 0 -3px 15px rgba(0, 255, 136, 0.06);
+}
+
+/* Game score rows - subtle hover */
+.border-b.border-edge-border {
+  transition: background-color 0.15s ease;
+}
+
+.border-b.border-edge-border:hover {
+  background-color: rgba(0, 229, 255, 0.03);
+}
+
+/* Confidence badges - enhanced glow */
+.font-mono.text-sm.font-bold {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  text-shadow: 0 0 8px currentColor;
+}
+
+/* Section headings in cards */
+.text-sm.font-semibold.uppercase.tracking-wider {
+  font-family: 'Barlow Condensed', sans-serif;
+  letter-spacing: 0.12em;
+}
+
+/* Sport badges - rounded pill */
+.text-\[10px\].font-bold.px-2 {
+  border-radius: 9999px;
+  letter-spacing: 0.08em;
+}
+
+/* Power Parlay section - gold theme */
+#root h2:nth-of-type(2) {
+  background: linear-gradient(135deg, #f5a623, #f0c040);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Weather section styling */
+.text-edge-muted.text-xs {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Footer bar */
+.text-center.text-\[10px\] {
+  font-family: 'Inter', sans-serif;
+  border-top: 1px solid rgba(0, 229, 255, 0.08);
+  padding-top: 1rem;
+}
+
+/* Tab buttons enhanced */
+button.flex-1 {
+  font-family: 'Barlow Condensed', sans-serif;
+  letter-spacing: 0.1em;
+  transition: all 0.15s ease;
+}
+
+button.flex-1:hover {
+  background-color: rgba(0, 229, 255, 0.08);
+}
+
+/* Edge percentage glow */
+.text-edge-green {
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+}
+
+.text-edge-amber {
+  text-shadow: 0 0 10px rgba(255, 179, 0, 0.4);
+}
+
+.text-edge-red {
+  text-shadow: 0 0 10px rgba(255, 61, 87, 0.4);
+}
+
+/* Parlay card border shimmer */
+.border-edge-gold\/30 {
+  animation: parlayBorder 3s ease-in-out infinite;
+}
+
+/* Refresh button glow on hover */
+button[title="Refresh data"]:hover {
+  color: #00e5ff;
+  filter: drop-shadow(0 0 6px rgba(0, 229, 255, 0.4));
+}
+
+/* Pitcher/Goalie stat cards */
+.bg-edge-card\/50 {
+  background: rgba(15, 15, 26, 0.5) !important;
+  border: 1px solid rgba(26, 26, 46, 0.4) !important;
+  border-radius: 8px;
+}
+
+/* News links */
+a.text-edge-green:hover {
+  text-shadow: 0 0 12px rgba(0, 255, 136, 0.5);
+}
+
+/* Section divider lines between major areas */
+.lg\:col-span-2 + div,
+.lg\:col-span-3 {
+  border-top: 1px solid rgba(0, 229, 255, 0.06);
+}
+
+/* Loading shimmer effect */
+.animate-pulse {
+  background: linear-gradient(90deg, #0f0f1a 25%, #1a1a2e 50%, #0f0f1a 75%) !important;
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Smooth page entrance */
+#root {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
