@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { api, Game, BestBet, NewsItem, WeatherData, Parlay, PitcherStats, GoalieStats } from "./api";
+import { api, Game, BestBet, NewsItem, WeatherData, Parlay, PitcherStats, GoalieStats, StreakData } from "./api";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { TrendingUp, Zap, Cloud, Newspaper, BarChart3, Trophy, AlertTriangle, RefreshCw, MapPin, Shield, Target, Thermometer, Wind, Lock } from "lucide-react";
 import { useNavState, useFilteredBets, NavBar, GameAccordion, PicksSummary } from "./NavComponents";
@@ -400,12 +400,33 @@ function LeagueSection({ sport, label, color, bets }: { sport: string; label: st
   );
 }
 
+function StreakTracker({ streak }: { streak: StreakData }) {
+  const isHot = streak.streakType === 'W' && streak.streakCount >= 3;
+  const streakColor = streak.streakType === 'W' ? 'text-green-400' : streak.streakType === 'L' ? 'text-red-400' : 'text-edge-muted';
+  if (!streak.hasBets) {
+    return (
+      <div className="flex items-center gap-2 bg-edge-card/50 border border-edge-border rounded-lg px-3 py-1.5">
+        <span className="text-xs text-edge-muted">0-0 | Start Tracking</span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-3 bg-edge-card/50 border border-edge-border rounded-lg px-3 py-1.5">
+      <span className="text-xs font-bold text-white">{streak.streak}</span>
+      <span className={`text-xs font-bold ${streakColor}`}>{streak.streakType}{streak.streakCount}</span>
+      <span className={`text-xs ${streak.roi >= 0 ? 'text-green-400' : 'text-red-400'}`}>{streak.roi >= 0 ? '+' : ''}{streak.roi}% ROI</span>
+      {isHot && <Trophy className="w-3.5 h-3.5 text-yellow-400" />}
+    </div>
+  );
+}
+
 export default function App() {
   const { data: games, loading: gamesLoading, refresh: refreshGames } = useApi(api.games, []);
   const { data: bets, loading: betsLoading } = useApi(api.bestBets, []);
   const { data: news, refresh: refreshNews } = useApi(api.news, []);
   const { data: weather, refresh: refreshWeather } = useApi(api.weather, []);
   const { data: parlays } = useApi(api.parlays, []);
+    const { data: streakData } = useApi<StreakData>(api.streakData, { wins: 0, losses: 0, pushes: 0, streak: '0-0', streakType: 'none', streakCount: 0, roi: 0, totalWagered: 0, totalProfit: 0, hasBets: false });
   const [tab, setTab] = useState<"bets" | "parlays" | "history">("bets");
   const [lastRefresh, setLastRefresh] = useState(new Date());
     const [navState, setNavState, toggleBetType] = useNavState();
@@ -445,6 +466,7 @@ export default function App() {
         <div>
           <h1 className="text-2xl font-black text-edge-green tracking-tight">EDGEBOARD</h1>
           <p className="text-xs text-edge-muted">FULL GAME CARDS | ML • RUN LINE • TOTAL • F5 • PROPS • {new Date().toLocaleDateString()}</p>
+                  <StreakTracker streak={streakData} />
         </div>
         <button onClick={() => { refreshGames(); refreshNews(); refreshWeather(); setLastRefresh(new Date()); }} className="text-edge-muted hover:text-white transition" title="Refresh data"><RefreshCw size={16} /></button>
       </div>
