@@ -397,10 +397,10 @@ a.text-edge-green:hover {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.85; }
 }
-.logo-edge {
+.logo-edge {   color: #00ff88 !important;   -webkit-text-fill-color: #00ff88 !important;
   animation: logo-breathe 3s ease-in-out infinite, edge-pulse 3s ease-in-out infinite;
 }
-.logo-board {
+.logo-board {   color: #00ff88 !important;   -webkit-text-fill-color: #00ff88 !important;
   animation: logo-breathe 3s ease-in-out infinite;
   animation-delay: 0.3s;
 }
