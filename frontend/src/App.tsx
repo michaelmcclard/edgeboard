@@ -480,8 +480,8 @@ export default function App() {
     <div className="min-h-screen bg-edge-bg text-edge-muted p-4 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-black text-edge-green tracking-tight">EDGEBOARD</h1>
-          <p className="text-xs text-edge-muted">FULL GAME CARDS | ML • RUN LINE • TOTAL • F5 • PROPS • {new Date().toLocaleDateString()}</p>
+          <h1 className="text-5xl font-black italic tracking-tight" style={{fontStretch: 'condensed'}}><span className="logo-edge" style={{color: '#0080ff'}}>EDGE</span><span className="logo-board" style={{color: '#0070ee'}}>BOARD</span></h1>
+          <p className="text-[11px] text-edge-muted tracking-[0.2em]">FULL GAME CARDS | ML • RUN LINE • TOTAL • F5 • PROPS • {new Date().toLocaleDateString()}</p>
                   <StreakTracker streak={streakData} />
         </div>
         <button onClick={() => { refreshGames(); refreshNews(); refreshWeather(); setLastRefresh(new Date()); }} className="text-edge-muted hover:text-white transition" title="Refresh data"><RefreshCw size={16} /></button>
