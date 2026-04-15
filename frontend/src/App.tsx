@@ -408,10 +408,11 @@ export default function App() {
   const { data: parlays } = useApi(api.parlays, []);
   const [tab, setTab] = useState<"bets" | "parlays" | "history">("bets");
   const [lastRefresh, setLastRefresh] = useState(new Date());
+    const [navState, setNavState, toggleBetType] = useNavState();
+    const { filtered, gameGroups } = useFilteredBets(bets, navState);
 
   useEffect(() => {
-      const [navState, setNavState, toggleBetType] = useNavState();  const { filtered, gameGroups } = useFilteredBets(bets, navState);
-    const interval = setInterval(() => {
+          const interval = setInterval(() => {
       refreshGames(); refreshNews(); refreshWeather(); setLastRefresh(new Date());
     }, 60000);
     return () => clearInterval(interval);
