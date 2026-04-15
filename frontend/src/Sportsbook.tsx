@@ -400,6 +400,105 @@ function BetHistory({ bets }: { bets: UserBet[] }) {
   );
 }
 
+// SYNOPSIS GENERATOR — same logic as Top 5 cards
+function generatePickSynopsis(b: BestBet): string {
+  const pick = b.pick;
+  const edge = b.edge_pct;
+  const sport = b.sport;
+  const betType = b.bet_type;
+  const hp = b.home_pitcher;
+  const ap = b.away_pitcher;
+  const hg = b.home_goalie;
+  const ag = b.away_goalie;
+  const isOver = pick.toLowerCase().includes('over');
+  const isUnder = pick.toLowerCase().includes('under');
+  const isML = betType === 'moneyline';
+  const isRL = betType === 'run_line' || betType === 'puck_line' || betType === 'spread';
+  const isTotal = betType === 'total' || betType === 'first_5';
+  const isProp = betType === 'player_prop';
+  const isF5 = betType === 'first_5';
+
+  // MLB STRIKEOUT PROPS
+  if (sport === 'MLB' && isProp && pick.toLowerCase().includes('strikeout')) {
+    const pitcher = hp?.confirmed ? hp : ap?.confirmed ? ap : null;
+    if (pitcher) {
+      const avgK = pitcher.last3.length > 0 ? (pitcher.last3.reduce((s, x) => s + x.k, 0) / pitcher.last3.length).toFixed(0) : null;
+      const recentStr = avgK ? `averaging ${avgK} Ks per outing in his last ${pitcher.last3.length} starts` : `posting elite strikeout numbers this season`;
+      return `${pitcher.name} has been dominant on the mound, ${recentStr} with a ${pitcher.kPer9.toFixed(1)} K/9 rate through ${pitcher.ip.toFixed(0)} innings. He draws a lineup that strikes out at an elevated clip, creating one of the sharpest K props on today's board.`;
+    }
+  }
+
+  // MLB MONEYLINE
+  if (sport === 'MLB' && isML) {
+    const fav = hp && ap ? (hp.era < ap.era ? hp : ap) : hp || ap;
+    const dog = hp && ap ? (hp.era < ap.era ? ap : hp) : null;
+    if (fav && dog) {
+      return `This is a clear pitching mismatch. ${fav.name} (${fav.era.toFixed(2)} ERA, ${fav.kPer9.toFixed(1)} K/9) has been significantly sharper than ${dog.name} (${dog.era.toFixed(2)} ERA) on the season, and the ${edge.toFixed(1)}% edge reflects that gap.`;
+    }
+  }
+
+  // MLB RUN LINE
+  if (sport === 'MLB' && isRL) {
+    const fav = hp && ap ? (hp.era < ap.era ? hp : ap) : hp || ap;
+    if (fav) {
+      const avgIP = fav.last3.length > 0 ? (fav.last3.reduce((s, x) => s + x.ip, 0) / fav.last3.length).toFixed(1) : '5+';
+      return `The run line is in play because ${fav.name} has been going deep into games, averaging ${avgIP} innings over his last ${fav.last3.length} starts while keeping runs off the board. When your ace is pitching into the 6th with a low ERA, covering -1.5 becomes much more realistic.`;
+    }
+  }
+
+  // MLB TOTAL / F5
+  if (sport === 'MLB' && (isTotal || isF5)) {
+    if (isF5) {
+      return `The first 5 innings isolate the starters and strip out bullpen variance. With ${hp?.name || 'the home starter'} and ${ap?.name || 'the away starter'} both on the mound, the F5 ${isOver ? 'over' : 'under'} is the cleaner play. Combined ERA and K-rate point to a controlled early game.`;
+    }
+    if (isOver) {
+      return `This game is set in a hitter-friendly environment and the pitching matchup does not inspire confidence on either side. When you combine elevated HR rates with average-to-below arms, overs tend to cash.`;
+    }
+    return `Two quality arms on the mound today with a combined profile that suppresses offense. The park plays neutral-to-pitcher-friendly, and neither lineup has the kind of power to overcome elite stuff. This total looks inflated.`;
+  }
+
+  // NHL MONEYLINE
+  if (sport === 'NHL' && isML) {
+    const better = hg && ag ? (hg.savePct > ag.savePct ? hg : ag) : hg || ag;
+    const worse = hg && ag ? (hg.savePct > ag.savePct ? ag : hg) : null;
+    if (better && worse) {
+      return `Goaltending wins hockey games, and there is a clear edge here. ${better.name} is posting a ${(better.savePct * 100).toFixed(1)}% save rate with a ${better.gaa.toFixed(2)} GAA, significantly outperforming ${worse.name} (${(worse.savePct * 100).toFixed(1)}% SV, ${worse.gaa.toFixed(2)} GAA). That kind of gap between the pipes tilts this matchup.`;
+    }
+  }
+
+  // NHL PUCK LINE
+  if (sport === 'NHL' && isRL) {
+    return `The goaltending mismatch is wide enough to consider the puck line. When one side has a clear advantage in net and recent form backs it up, -1.5 becomes viable in a sport where empty-net goals frequently seal the cover.`;
+  }
+
+  // NHL TOTAL
+  if (sport === 'NHL' && isTotal) {
+    if (isUnder) return `Both goalies are dialed in right now, with recent save percentages that suppress scoring. When two hot netminders meet, unders hit at an elevated rate.`;
+    return `Neither goalie is stopping pucks consistently right now, and the recent form shows leaky defense on both sides. This has the makings of a high-event, back-and-forth game.`;
+  }
+
+  // NHL SAVE PROP
+  if (sport === 'NHL' && isProp) {
+    const goalie = hg?.confirmed ? hg : ag?.confirmed ? ag : null;
+    if (goalie) {
+      return `${goalie.name} has been a wall recently, posting a ${(goalie.savePct * 100).toFixed(1)}% save rate on the season. He is seeing heavy volume and converting at an elite clip. The over on saves is one of the sharper goalie props available tonight.`;
+    }
+  }
+
+  // NBA
+  if (sport === 'NBA' && isML) return `The spread and defensive matchup data both favor this side. When one team allows significantly more points per game and the pace of play aligns, the moneyline becomes a high-value play at current odds.`;
+  if (sport === 'NBA' && isRL) return `The spread is backed by a meaningful defensive gap between these two teams. The pace and scoring environment project a comfortable margin, making the points worth taking at this number.`;
+  if (sport === 'NBA' && isTotal) {
+    return isOver
+      ? `Both defenses rank in the bottom tier of the league in points allowed, and the pace of play pushes possessions higher than average. This total looks too low for two teams that struggle to get stops.`
+      : `This is a grind-it-out matchup between two slower-paced teams with competent defenses. The combined tempo drags the scoring projection well below the posted line.`;
+  }
+  if (sport === 'NBA' && isProp) return `The defensive matchup creates a scoring environment that favors this team total. When you face a bottom-tier defense that hemorrhages points, the over on team scoring is one of the highest-percentage plays available.`;
+
+  // Fallback
+  return b.rationale.length > 200 ? b.rationale.substring(0, 200) + '...' : b.rationale;
+}
+
 // PICK CARD WITH ADD TO SLIP BUTTON
 function PickCard({
   bet,
@@ -442,6 +541,7 @@ function PickCard({
           </div>
           <p className="text-sm font-semibold text-white mb-1">{bet.pick}</p>
           {bet.matchup_detail && <p className="text-xs text-edge-muted truncate">{bet.matchup_detail}</p>}
+                    <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{generatePickSynopsis(bet)}</p>
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0">
           <span className={`text-base font-bold tabular-nums ${confColor}`}>{(bet.confidence || 0).toFixed(1)}</span>
