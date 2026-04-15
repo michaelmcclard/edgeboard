@@ -74,11 +74,7 @@ function BetTypeBadge({ type }: { type: string }) {
   return <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${colors[type] || "bg-gray-800 text-gray-400"}`}>{labels[type] || type}</span>;
 }
 
-function PitcherCard({ pitcher, label }: { pitcher: PitcherStats; label: string }) {
-  if (!pitcher?.confirmed) return null;
-  return (
-
-    // CONFIDENCE TIER BADGE
+// CONFIDENCE TIER BADGE
 function getConfidenceTier(confidence: number): { label: string; icon: string; css: string } | null {
   if (confidence >= 9.7) return { label: 'NUCLEAR', icon: '\u2622\uFE0F', css: 'tier-nuclear' };
   if (confidence >= 9.3) return { label: 'HIGH VOLTAGE', icon: '\u26A1\u26A1', css: 'tier-high-voltage' };
@@ -105,7 +101,11 @@ function getParlayTier(legs: BestBet[]): { label: string; icon: string; css: str
   return getConfidenceTier(lowestConf);
 }
 
-    <div className="bg-edge-card/50 rounded p-2 border border-edge-border/30">
+function PitcherCard({ pitcher, label }: { pitcher: PitcherStats; label: string }) {
+  if (!pitcher?.confirmed) return null;
+    
+    return (  
+  <div className="bg-edge-card/50 rounded p-2 border border-edge-border/30">
       <div className="text-[9px] text-edge-muted uppercase mb-1">{label}</div>
       <div className="text-xs font-bold text-white">{pitcher.name} <span className="text-edge-muted">({pitcher.hand})</span></div>
       <div className="flex gap-2 mt-1 text-[10px]">
