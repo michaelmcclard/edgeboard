@@ -5,6 +5,7 @@ market signals, and weather all contribute equally where data supports it.
 """
 import logging
 import json
+from app.services.rationale_generator import build_rationale
 from datetime import date, datetime
 from typing import Optional
 
@@ -554,109 +555,4 @@ def upsert_pick(supabase, pick, target_date):
         }
         supabase.table("model_audit").insert(audit).execute()
 
-
-def build_rationale(pick):
-    """Auto-generate rationale referencing the actual top 3 factors
-    that drove this pick's confidence score."""
-    f = pick["factors"]
-    # Build list of (factor_name, score, detail_dict)
-    scored = []
-    for name, info in f.items():
-        s = info.get("score", 0)
-        if s > 0:
-            scored.append((name, s, info.get("detail", {})))
-    # Sort by score descending, take top 3
-    scored.sort(key=lambda x: x[1], reverse=True)
-    top3 = scored[:3]
-    parts = []
-    label_map = {
-        "pitching": _pitching_blurb,
-        "hitting": _hitting_blurb,
-        "bullpen": _bullpen_blurb,
-        "matchup": _matchup_blurb,
-        "situational": _situational_blurb,
-        "market": _market_blurb,
-        "weather": _weather_blurb,
-        "defense": _defense_blurb,
-    }
-    for name, s, detail in top3:
-        fn = label_map.get(name)
-        if fn:
-            parts.append(fn(s, detail))
-    if not parts:
-        parts.append("Model edge based on composite scoring across all factors.")
-    return " ".join(parts)
-
-
-# --- Rationale blurb helpers ---
-
-def _pitching_blurb(s, d):
-    era = d.get("era", "?")
-    if s >= 7:
-        return f"Dominant starter ({era} ERA) anchors this pick."
-    return f"Starter quality ({era} ERA) is a contributing factor."
-
-def _hitting_blurb(s, d):
-    barrel = d.get("barrel", d.get("barrel_rate", "?"))
-    ops = d.get("full_ops", "?")
-    if s >= 7:
-        return f"Elite lineup ({ops} OPS, {barrel}% barrel rate) drives confidence."
-    return f"Offensive profile ({ops} OPS) supports the edge."
-
-def _bullpen_blurb(s, d):
-    era = d.get("bp_era", "?")
-    if s >= 7:
-        return f"Shutdown bullpen ({era} ERA) provides late-game insurance."
-    return f"Bullpen depth ({era} ERA) adds value."
-
-def _matchup_blurb(s, d):
-    plat = d.get("platoon_disadv", 0)
-    ops_h = d.get("lineup_vs_hand", "?")
-    if plat >= 5:
-        return f"Significant platoon advantage ({ops_h} OPS vs hand)."
-    bsr = d.get("bsr", 0)
-    if bsr > 1:
-        return f"Baserunning edge (BSR {bsr}) creates extra value."
-    return f"Matchup specifics ({ops_h} OPS vs hand) lean favorable."
-
-def _situational_blurb(s, d):
-    rest = d.get("rest_days", "?")
-    road = d.get("road_games", 0)
-    if road >= 7:
-        return f"Opponent fatigued (game {road} of road trip)."
-    if d.get("tank_flag"):
-        return "Opponent out of contention with no motivation."
-    return f"Schedule spot ({rest}d rest) favors this side."
-
-def _market_blurb(s, d):
-    parts = []
-    if d.get("rlm"):
-        parts.append("reverse line movement")
-    if d.get("sharp") == "high":
-        parts.append("sharp money aligned")
-    if d.get("pub_pct", 50) > 70:
-        parts.append(f"fading {d['pub_pct']}% public")
-    if d.get("steam"):
-        parts.append("steam move detected")
-    if parts:
-        return "Market signals: " + ", ".join(parts) + "."
-    return "Market indicators lean favorable."
-
-def _weather_blurb(s, d):
-    wind = d.get("wind", 0)
-    wind_dir = d.get("wind_dir", "")
-    if wind > 15 and wind_dir == "out":
-        return f"Wind blowing out at {wind} mph favors the over."
-    if d.get("pressure", 30) < 29.80:
-        return "Low barometric pressure means the ball carries."
-    return "Weather conditions are a minor factor."
-
-def _defense_blurb(s, d):
-    oaa = d.get("oaa", 0)
-    drs = d.get("drs", 0)
-    if oaa > 10 or drs > 15:
-        return f"Elite defense (OAA {oaa}, DRS {drs}) limits damage."
-    if oaa < -10 or drs < -15:
-        return f"Poor defense (OAA {oaa}, DRS {drs}) creates vulnerability."
-    return f"Defensive metrics (OAA {oaa}) are a contributing factor."
 
