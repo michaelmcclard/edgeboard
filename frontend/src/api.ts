@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { generateBatterProps } from './batterProps';
+import { generateRationale } from './rationale';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -568,7 +569,7 @@ async function generateMLBFullCards(games: MLBScheduleGame[]): Promise<BestBet[]
         id: `mlb-${g.gamePk}-ml`, game_id: String(g.gamePk),
         pick: `${favTeam} ML`, edge_pct: parseFloat((pitcherEdge * 1.5).toFixed(1)),
         confidence: parseFloat(mlConf.toFixed(1)),
-        rationale: `${fav.name} (${fav.era.toFixed(2)} ERA, ${fav.whip.toFixed(2)} WHIP, ${fav.kPer9.toFixed(1)} K/9, last 3: ${last3Str(fav)}) vs ${dog.name} (${dog.era.toFixed(2)} ERA, ${dog.whip.toFixed(2)} WHIP, ${dog.kPer9.toFixed(1)} K/9, last 3: ${last3Str(dog)}). ${favTeam} (${favRec}) offense: ${favBat.ops.toFixed(3)} OPS. Bullpen edge: ${favBp.era.toFixed(2)} vs ${dogBp.era.toFixed(2)} ERA.`,
+          rationale: await generateRationale({ betType: 'moneyline', pick: `${favTeam} ML`, favTeam, dogTeam: betterPitcher === 'home' ? g.awayTeam : g.homeTeam, favPitcher: fav, dogPitcher: dog, favBullpenEra: favBp.era, dogBullpenEra: dogBp.era, favOps: favBat.ops, parkFactor: park.runs, parkNotes: park.notes, weather: wxStr, confidence: mlConf }),
         bet_type: 'moneyline', best_book: 'DraftKings', sport: 'MLB', data_confidence: dataConf,
         home_pitcher: hp, away_pitcher: ap,
         matchup_detail: `${ap.name} (${ap.era.toFixed(2)}) vs ${hp.name} (${hp.era.toFixed(2)}) | ${g.venue}`,
@@ -589,7 +590,7 @@ async function generateMLBFullCards(games: MLBScheduleGame[]): Promise<BestBet[]
         id: `mlb-${g.gamePk}-rl`, game_id: String(g.gamePk),
         pick: `${favTeam} -1.5`, edge_pct: parseFloat((pitcherEdge * 1.2).toFixed(1)),
         confidence: parseFloat(rlConf.toFixed(1)),
-        rationale: `${fav.name} averaging ${avgIpLast3.toFixed(1)} IP over last ${fav.last3.length} starts (last 3: ${last3Str(fav)}). Only giving up ${fav.last3.length > 0 ? (fav.last3.reduce((s, x) => s + x.er, 0) / fav.last3.length).toFixed(1) : '?'} ER/start. ${favTeam} bullpen ERA ${favBp.era.toFixed(2)} vs opponent BP ERA ${dogBp.era.toFixed(2)}. Park factor: ${park.runs.toFixed(2)} (${park.notes}).`,
+                    rationale: await generateRationale({ betType: 'run_line', pick: `${favTeam} -1.5`, favTeam, dogTeam: betterPitcher === 'home' ? g.awayTeam : g.homeTeam, favPitcher: fav, dogPitcher: dog, favBullpenEra: favBp.era, dogBullpenEra: dogBp.era, favOps: (betterPitcher === 'home' ? homeBat : awayBat).ops, parkFactor: park.runs, parkNotes: park.notes, weather: wxStr, confidence: rlConf }),
         bet_type: 'run_line', best_book: 'FanDuel', sport: 'MLB', data_confidence: dataConf,
         home_pitcher: hp, away_pitcher: ap,
         matchup_detail: `${ap.name} vs ${hp.name} | ${g.venue} (PF: ${park.runs.toFixed(2)})`,
