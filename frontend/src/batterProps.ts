@@ -360,12 +360,12 @@ export interface GameContext {
   homePitcher: PitcherStats | null;
   awayPitcher: PitcherStats | null;
   venue: string;
-  parkHR: number;
-  parkHits: number;
-  wxStr: string;
-  windOut: boolean;
-  umpStr: string;
-  dataConf: 'HIGH' | 'MEDIUM' | 'LOW';
+  parkHR?: number;
+  parkHits?: number;
+  wxStr?: string;
+  windOut?: boolean;
+  umpStr?: string;
+  dataConf?: 'HIGH' | 'MEDIUM' | 'LOW';
 }
 
 export async function generateBatterProps(games: GameContext[]): Promise<BestBet[]> {
@@ -401,15 +401,15 @@ export async function generateBatterProps(games: GameContext[]): Promise<BestBet
 
       for (const batter of side.batters) {
         // Total Bases
-        const tb = scoreTotalBases(batter, side.opp, g.parkHR, g.wxStr);
+        const tb = scoreTotalBases(batter, side.opp, (g.parkHR ?? 1.0), (g.wxStr ?? 'Unknown'));
         if (tb) candidates.push(tb);
 
         // Home Run
-        const hr = scoreHR(batter, side.opp, g.parkHR, g.windOut);
+        const hr = scoreHR(batter, side.opp, (g.parkHR ?? 1.0), (g.windOut ?? false));
         if (hr) candidates.push(hr);
 
         // Hits
-        const hits = scoreHits(batter, side.opp, g.parkHits);
+        const hits = scoreHits(batter, side.opp, (g.parkHits ?? 1.0));
         if (hits) candidates.push(hits);
 
         // Stolen Base
@@ -490,12 +490,12 @@ export async function generateBatterProps(games: GameContext[]): Promise<BestBet
           bet_type: 'player_prop',
           best_book: c.book,
           sport: 'MLB',
-          data_confidence: g.dataConf,
+          data_confidence: (g.dataConf ?? 'MEDIUM') as 'HIGH' | 'MEDIUM' | 'LOW',
           home_pitcher: g.homePitcher || undefined,
           away_pitcher: g.awayPitcher || undefined,
           matchup_detail: c.matchupDetail,
-          weather_detail: g.wxStr,
-          umpire_detail: g.umpStr,
+          weather_detail: g.wxStr ?? 'Unknown',
+          umpire_detail: g.umpStr ?? 'Umpire: TBD',
           recommendation: conf >= 8.0 ? 'BET' : conf >= 7.0 ? 'LEAN' : 'NO BET',
         });
       }

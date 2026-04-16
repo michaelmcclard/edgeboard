@@ -659,3 +659,4 @@ def _defense_blurb(s, d):
     if oaa < -10 or drs < -15:
         return f"Poor defense (OAA {oaa}, DRS {drs}) creates vulnerability."
     return f"Defensive metrics (OAA {oaa}) are a contributing factor."
+
