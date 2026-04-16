@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes import games, best_bets, lines, news, weather, history, parlays
+from app.routes import games, best_bets, lines, news, weather, history, parlays, rationale
 
 app = FastAPI(title="EdgeBoard API", version="1.0.0")
 
@@ -21,6 +21,7 @@ app.include_router(news.router, prefix="/news", tags=["news"])
 app.include_router(weather.router, prefix="/weather", tags=["weather"])
 app.include_router(history.router, prefix="/history", tags=["history"])
 app.include_router(parlays.router, prefix="/parlays", tags=["parlays"])
+app.include_router(rationale.router, prefix="/api/rationale", tags=["rationale"])
 
 @app.get("/")
 def root():
