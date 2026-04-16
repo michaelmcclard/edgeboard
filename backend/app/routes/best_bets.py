@@ -1,10 +1,15 @@
 from fastapi import APIRouter
 from datetime import date
 from app.services.rationale_generator import build_rationale
+import json
 
 router = APIRouter()
 
-# Mock bets include structured factors so build_rationale can call Anthropic dynamically
+# ============================================================
+# MOCK BETS — used when Supabase has no data for today
+# Each bet has a 'factors' dict so build_rationale can call
+# Anthropic dynamically with real data instead of templates.
+# ============================================================
 MOCK_BETS_RAW = [
     {
         "id": "bb1",
@@ -83,7 +88,7 @@ MOCK_BETS_RAW = [
         "away_team": "Orioles",
         "bet_type": "moneyline",
         "pick": "Guardians ML (-140)",
-        "confidence": 7.6,
+        "confidence": 8.6,
         "edge_pct": 4.4,
         "ev_pct": 3.5,
         "weather_flag": None,
@@ -106,7 +111,7 @@ MOCK_BETS_RAW = [
         "away_team": "Rays",
         "bet_type": "total",
         "pick": "Under 8.5 (-115)",
-        "confidence": 7.3,
+        "confidence": 8.1,
         "edge_pct": 3.9,
         "ev_pct": 3.1,
         "weather_flag": "Wind 18mph crosswind",
@@ -123,17 +128,63 @@ MOCK_BETS_RAW = [
     },
 ]
 
+# Minimum confidence threshold — only show picks the model is confident in
+MIN_CONFIDENCE = 8.0
+
 
 def _build_mock_bets():
-    """Generate mock bets with dynamic Anthropic rationales."""
+    """Generate mock bets with dynamic Anthropic rationales. Filters low-confidence picks."""
     result = []
     for bet in MOCK_BETS_RAW:
+        if bet.get("confidence", 0) < MIN_CONFIDENCE:
+            continue
         b = dict(bet)
         b["rationale"] = build_rationale(b)
-        # Remove factors from response payload
         b.pop("factors", None)
         result.append(b)
-    return result
+    # Cap at 8 picks max
+    return result[:8]
+
+
+def _build_supabase_bet(r):
+    """
+    Build a bet dict from a Supabase row, calling build_rationale dynamically.
+    - Pulls factors from the DB row if stored (as JSON column or dict)
+    - Falls back to empty factors if not present
+    - Calls Claude the same way mock bets do
+    """
+    factors = r.get("factors") or {}
+    # If factors is stored as a JSON string, parse it
+    if isinstance(factors, str):
+        try:
+            factors = json.loads(factors)
+        except Exception:
+            factors = {}
+
+    bet = {
+        "id": r["id"],
+        "sport": r["games"]["sport"],
+        "game_time": r["games"]["game_time"],
+        "home_team": r["games"]["home_team"],
+        "away_team": r["games"]["away_team"],
+        "bet_type": r["bet_type"],
+        "pick": r["pick"],
+        "confidence": r["confidence"],
+        "edge_pct": r["edge_pct"],
+        "ev_pct": r.get("ev_pct", 0),
+        "weather_flag": r.get("weather_flag"),
+        "injury_flag": r.get("injury_flag"),
+        "line_move": r.get("line_move_direction", "flat"),
+        "best_book": r.get("best_book", "DraftKings"),
+        "model_prob": r.get("model_prob", 0),
+        "implied_prob": r.get("implied_prob", 0),
+        "factors": factors,
+    }
+    # Generate rationale dynamically via Claude (same as mock path)
+    bet["rationale"] = build_rationale(bet)
+    # Remove factors from response payload
+    bet.pop("factors", None)
+    return bet
 
 
 @router.get("/today")
@@ -142,9 +193,17 @@ def best_bets_today():
         from app.core.supabase_client import get_supabase_client
         supabase = get_supabase_client()
         today = date.today().isoformat()
-        res = supabase.table("best_bets").select("*, games!inner(home_team,away_team,sport,game_time)").eq("date", today).order("confidence", desc=True).execute()
+        res = (
+            supabase.table("best_bets")
+            .select("*, games!inner(home_team,away_team,sport,game_time), factors")
+            .eq("date", today)
+            .gte("confidence", MIN_CONFIDENCE)  # Filter at DB level
+            .order("confidence", desc=True)
+            .limit(8)  # Cap at 8 picks
+            .execute()
+        )
         if res.data:
-            return [{"id": r["id"], "sport": r["games"]["sport"], "game_time": r["games"]["game_time"], "home_team": r["games"]["home_team"], "away_team": r["games"]["away_team"], "bet_type": r["bet_type"], "pick": r["pick"], "confidence": r["confidence"], "edge_pct": r["edge_pct"], "ev_pct": r.get("ev_pct", 0), "rationale": r.get("rationale", ""), "weather_flag": r.get("weather_flag"), "injury_flag": r.get("injury_flag"), "line_move": r.get("line_move_direction", "flat"), "best_book": r.get("best_book", "DraftKings"), "model_prob": r.get("model_prob", 0), "implied_prob": r.get("implied_prob", 0)} for r in res.data]
+            return [_build_supabase_bet(r) for r in res.data]
     except Exception:
         pass
     return _build_mock_bets()
