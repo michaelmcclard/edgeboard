@@ -87,7 +87,7 @@ def _anthropic_rationale(pick):
     try:
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
         if not api_key:
-            logger.warning("ANTHROPIC_API_KEY not set — using template fallback")
+            logger.warning("ANTHROPIC_API_KEY not set - using template fallback")
             return _template_rationale(pick)
 
         client = anthropic.Anthropic(api_key=api_key)
@@ -102,26 +102,38 @@ def _anthropic_rationale(pick):
         confidence = pick.get("confidence", 0)
         bet_label = "moneyline" if bet_type == "moneyline" else "run line"
 
-        lines = []
+        factor_lines = []
         for name, score, detail in top3:
-            lines.append(f"  {name.upper()} (score {score:.1f}/10): {_fmt(name, detail)}")
-        factors_block = "\n".join(lines)
+            factor_lines.append(
+                f"  - {name.upper()} (score {score:.1f}/10): {_fmt(name, detail)}"
+            )
+        factors_block = "\n".join(factor_lines)
+
+        # Build the dominant factor name for uniqueness seeding
+        dominant = top3[0][0] if top3 else "unknown"
+        secondary = top3[1][0] if len(top3) > 1 else ""
 
         prompt = (
-            f"You are a sharp MLB betting analyst writing a concise pick synopsis."
-            f" Bet: {pick_str} | Game: {away} @ {home}"
-            f" | Confidence: {confidence}/10 | Type: {bet_label}\n\n"
-            f"Top 3 scoring factors (actual data):\n{factors_block}\n\n"
-            "Write exactly 2-3 sentences explaining why this bet wins or covers TODAY.\n"
-            "Rules: Reference the numeric data values shown. Do not mention factors"
-            " outside the top 3. No two picks should share the same reasoning"
-            " structure. Be assertive — no hedging. Do not start with the team name."
-            " Do not use the word edge or value."
+            f"You are a sharp MLB betting analyst. Write a 2-3 sentence pick synopsis.\n\n"
+            f"Game: {away} @ {home}\n"
+            f"Pick: {pick_str} ({bet_label})\n"
+            f"Confidence: {confidence}/10\n\n"
+            f"Top 3 scoring factors (use ONLY these, with their exact numbers):\n"
+            f"{factors_block}\n\n"
+            f"Requirements:\n"
+            f"- Your opening sentence MUST center on {dominant.upper()} data specifically\n"
+            f"- Reference at least 2 specific numeric values from the factor data above\n"
+            f"- Explain why {pick_str} wins or covers TODAY based on this data\n"
+            f"- Do NOT use generic phrases like 'run line is in play' or 'edge exists'\n"
+            f"- Do NOT start with the team name\n"
+            f"- Do NOT use the words 'edge' or 'value'\n"
+            f"- Be assertive, no hedging\n"
+            f"- 2-3 sentences max"
         )
 
         message = client.messages.create(
             model="claude-haiku-4-5",
-            max_tokens=180,
+            max_tokens=200,
             messages=[{"role": "user", "content": prompt}],
         )
         text = message.content[0].text.strip()
