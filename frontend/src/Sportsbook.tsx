@@ -591,6 +591,7 @@ export default function Sportsbook({ bets }: { bets: BestBet[] }) {
   const [tab, setTab] = useState<'picks' | 'active' | 'history'>('picks');
   const [loadingBets, setLoadingBets] = useState(false);
   const [sportFilter, setSportFilter] = useState<string>('ALL');
+    const [betTypeFilter, setBetTypeFilter] = useState<string>('ALL');
 
   const loadActiveBets = useCallback(async () => {
     setLoadingBets(true);
@@ -620,7 +621,9 @@ export default function Sportsbook({ bets }: { bets: BestBet[] }) {
 
   const slipIds = new Set(slipEntries.map(e => e.id));
   const sports = ['ALL', ...Array.from(new Set(bets.map(b => b.sport)))];
-  const filteredBets = sportFilter === 'ALL' ? bets : bets.filter(b => b.sport === sportFilter);
+  const sportFiltered = sportFilter === 'ALL' ? bets : bets.filter(b => b.sport === sportFilter);
+    const betTypeMap: Record<string, string[]> = { 'MONEYLINE': ['moneyline'], 'RUN LINE': ['run_line', 'puck_line', 'spread'], 'TOTAL': ['total'], 'FIRST 5': ['first_5'], 'PROPS': ['player_prop'] };
+    const filteredBets = betTypeFilter === 'ALL' ? sportFiltered : sportFiltered.filter(b => (betTypeMap[betTypeFilter] || []).includes(b.bet_type));
   const sortedBets = [...filteredBets].sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
 
   const activePending = activeBets.filter(b => b.status === 'active' || !b.result);
@@ -653,6 +656,20 @@ export default function Sportsbook({ bets }: { bets: BestBet[] }) {
         </div>
 
         {/* TAB BAR */}
+                  {/* BET TYPE FILTER PILLS */}
+          <div className="flex items-center gap-1 mt-2">
+            {['ALL', 'MONEYLINE', 'RUN LINE', 'TOTAL', 'FIRST 5', 'PROPS'].map(bt => (
+              <button
+                key={bt}
+                onClick={() => setBetTypeFilter(bt)}
+                className={`text-xs px-2 py-1 rounded font-bold transition ${
+                  betTypeFilter === bt ? 'bg-edge-green/20 text-edge-green' : 'text-edge-muted hover:text-white'
+                }`}
+              >
+                {bt}
+              </button>
+            ))}
+          </div>
         <div className="flex gap-1 bg-gray-900 p-1 rounded-lg">
           {([
             { id: 'picks', label: `Picks (${sortedBets.length})` },
