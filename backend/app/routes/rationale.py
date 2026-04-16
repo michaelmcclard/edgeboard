@@ -1,5 +1,4 @@
 import os
-import json
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
@@ -7,10 +6,12 @@ import httpx
 
 router = APIRouter()
 
+
 class Last3Start(BaseModel):
     ip: float
     er: int
     k: int
+
 
 class PitcherInput(BaseModel):
     name: str
@@ -19,11 +20,13 @@ class PitcherInput(BaseModel):
     k_per9: float
     last3: Optional[List[Last3Start]] = []
 
+
 class DogPitcherInput(BaseModel):
     name: str
     era: float
     whip: float
     k_per9: float
+
 
 class RationaleRequest(BaseModel):
     bet_type: str  # moneyline, run_line, spread, total, player_prop
@@ -44,6 +47,66 @@ class RationaleRequest(BaseModel):
     factor_details: Dict[str, Any] = {}
     confidence: float = 7.0
 
+
+def build_full_data_block(req: RationaleRequest) -> str:
+    """Build a complete, unranked data package for Claude."""
+    fp = req.fav_pitcher
+    dp = req.dog_pitcher
+    lines = []
+
+    # PITCHING
+    if fp:
+        last3_str = ", ".join(f"{s.ip}IP/{s.er}ER/{s.k}K" for s in fp.last3) if fp.last3 else "no recent data"
+        lines.append("PITCHING:")
+        lines.append(f"  {req.fav_team} starter: {fp.name} | ERA: {fp.era:.2f} | WHIP: {fp.whip:.2f} | K/9: {fp.k_per9:.1f} | Last 3: {last3_str}")
+    if dp:
+        lines.append(f"  {req.dog_team} starter: {dp.name} | ERA: {dp.era:.2f} | WHIP: {dp.whip:.2f} | K/9: {dp.k_per9:.1f}")
+    if not fp and not dp:
+        lines.append("PITCHING: no starter data available")
+
+    # BULLPEN
+    lines.append("BULLPEN:")
+    lines.append(f"  {req.fav_team} BP ERA: {req.fav_bullpen_era:.2f} | {req.dog_team} BP ERA: {req.dog_bullpen_era:.2f}")
+    bp_gap = req.dog_bullpen_era - req.fav_bullpen_era
+    if abs(bp_gap) >= 0.5:
+        lines.append(f"  Bullpen gap: {abs(bp_gap):.2f} ERA advantage to {req.fav_team if bp_gap > 0 else req.dog_team}")
+
+    # LINEUP / OFFENSE
+    lines.append("LINEUP (favored team):")
+    lines.append(f"  OPS: {req.fav_ops:.3f}" +
+                 (f" | Barrel%: {req.fav_barrel_rate:.1f}" if req.fav_barrel_rate else "") +
+                 (f" | HardHit%: {req.fav_hard_hit:.1f}" if req.fav_hard_hit else ""))
+
+    # PARK FACTOR
+    lines.append("PARK FACTOR:")
+    park_lean = "hitter-friendly" if req.park_factor >= 1.06 else ("pitcher-friendly" if req.park_factor <= 0.94 else "neutral")
+    lines.append(f"  Factor: {req.park_factor:.2f} ({park_lean}) | {req.park_notes}")
+
+    # WEATHER
+    lines.append("WEATHER:")
+    lines.append(f"  {req.weather if req.weather else 'No significant conditions'}")
+
+    # MARKET / SITUATIONAL (from factor_details if present)
+    fd = req.factor_details or {}
+    market = fd.get("market") or fd.get("market_signals")
+    if market and isinstance(market, dict):
+        lines.append("MARKET SIGNALS:")
+        rlm = market.get("rlm") or market.get("fav_era")  # check for real RLM key
+        if isinstance(rlm, bool) or isinstance(rlm, int):
+            lines.append(f"  RLM: {rlm} | Sharp money: {market.get('sharp', 'N/A')} | Public%: {market.get('pub_pct', 'N/A')}% | Money%: {market.get('money_pct', 'N/A')}%")
+
+    situational = fd.get("situational")
+    if situational and isinstance(situational, dict):
+        lines.append("SITUATIONAL:")
+        lines.append(f"  Rest days: {situational.get('rest_days', 'N/A')} | Road streak: {situational.get('road_games', 'N/A')} | Playoff race: {situational.get('playoff_race', 'N/A')}")
+
+    # AVAILABLE FACTORS (names only — no scores to avoid ranking bias)
+    if req.top_factors:
+        lines.append(f"ENGINE FLAGGED FACTORS: {', '.join(f.upper() for f in req.top_factors)}")
+
+    return "\n".join(lines)
+
+
 def build_fallback(req: RationaleRequest) -> str:
     fp = req.fav_pitcher
     dp = req.dog_pitcher
@@ -55,18 +118,22 @@ def build_fallback(req: RationaleRequest) -> str:
                 avg_ip = f"{sum(s.ip for s in fp.last3) / len(fp.last3):.1f}"
                 avg_er = f"{sum(s.er for s in fp.last3) / len(fp.last3):.1f}"
             last3_str = ", ".join(f"{s.ip}IP/{s.er}ER/{s.k}K" for s in fp.last3) if fp.last3 else "no recent data"
-            return (f"{fp.name} ({fp.era:.2f} ERA, {fp.k_per9:.1f} K/9) averaging {avg_ip} IP "
-                    f"and {avg_er} ER over his last {len(fp.last3)} starts ({last3_str}). "
-                    f"Bullpen ERA {req.fav_bullpen_era:.2f} vs opponent {req.dog_bullpen_era:.2f} — "
-                    f"late-game advantage is significant. {req.park_notes}.")
+            return (
+                f"{fp.name} ({fp.era:.2f} ERA, {fp.k_per9:.1f} K/9) averaging {avg_ip} IP "
+                f"and {avg_er} ER over his last {len(fp.last3)} starts ({last3_str}). "
+                f"Bullpen ERA {req.fav_bullpen_era:.2f} vs opponent {req.dog_bullpen_era:.2f} — "
+                f"late-game advantage is significant. {req.park_notes}."
+            )
         else:
             last3_str = ", ".join(f"{s.ip}IP/{s.er}ER/{s.k}K" for s in fp.last3) if fp.last3 else "no recent data"
-            return (f"{fp.name} ({fp.era:.2f} ERA, {fp.whip:.2f} WHIP, {fp.k_per9:.1f} K/9, "
-                    f"last 3: {last3_str}) has a clear edge over "
-                    f"{dp.name} ({dp.era:.2f} ERA). {req.fav_team} lineup posts "
-                    f"{req.fav_ops:.3f} OPS and bullpen ERA is {req.fav_bullpen_era:.2f}. "
-                    f"{req.park_notes}.")
-    return f"{req.fav_team} has the statistical edge at {req.confidence:.1f}/10 confidence. {req.park_notes}."
+            return (
+                f"{fp.name} ({fp.era:.2f} ERA, {fp.whip:.2f} WHIP, {fp.k_per9:.1f} K/9, "
+                f"last 3: {last3_str}) vs {dp.name} ({dp.era:.2f} ERA). "
+                f"{req.fav_team} posts {req.fav_ops:.3f} OPS with {req.fav_bullpen_era:.2f} bullpen ERA. "
+                f"{req.park_notes}."
+            )
+    return f"{req.fav_team} has the statistical advantage at {req.confidence:.1f}/10 confidence. {req.park_notes}."
+
 
 @router.post("/")
 async def generate_rationale(req: RationaleRequest):
@@ -74,52 +141,41 @@ async def generate_rationale(req: RationaleRequest):
     if not api_key:
         return {"rationale": build_fallback(req)}
 
-    fp = req.fav_pitcher
-    dp = req.dog_pitcher
-    top_factors = req.top_factors or ["pitching", "bullpen", "offense"]
-    factor_details = req.factor_details or {}
+    full_data_block = build_full_data_block(req)
 
-    last3_str = "no recent data"
-    if fp and fp.last3:
-        last3_str = ", ".join(f"{s.ip}IP/{s.er}ER/{s.k}K" for s in fp.last3)
+    if req.bet_type == "moneyline":
+        bet_instruction = (
+            f"MONEYLINE: explain why {req.fav_team} WINS OUTRIGHT today. "
+            f"Do NOT mention run line, spread, or covering."
+        )
+    elif req.bet_type in ("run_line", "spread"):
+        bet_instruction = (
+            f"RUN LINE / SPREAD (-1.5): explain why {req.fav_team} wins BY MULTIPLE RUNS. "
+            f"Address margin of victory — starter depth, bullpen, or lineup power. "
+            f"Do NOT say 'wins outright'."
+        )
+    else:
+        bet_instruction = f"Explain why {req.pick} hits today."
 
-    bet_label = {
-        "moneyline": "moneyline",
-        "run_line": "run line (-1.5)",
-        "spread": "spread",
-        "total": "game total",
-        "player_prop": "player prop",
-    }.get(req.bet_type, req.bet_type)
+    prompt = f"""You are a sharp MLB betting analyst. Write a 2-3 sentence pick rationale.
 
-    factors_formatted = json.dumps(factor_details, indent=2)
-
-    prompt = f"""You are a sharp MLB betting analyst. Write a 2-3 sentence synopsis for this specific bet.
-
-Pick: {req.pick} ({bet_label})
+Game: {req.dog_team} @ {req.fav_team}
+Pick: {req.pick}
+Bet type: {bet_instruction}
 Confidence: {req.confidence:.1f}/10
 
-Top 3 factors driving this pick: {top_factors}
+FULL DATA PACKAGE:
+{full_data_block}
 
-Factor details:
-{factors_formatted}
-
-Additional data:
-- {req.fav_team} starter: {f"{fp.name}, {fp.era:.2f} ERA, {fp.whip:.2f} WHIP, {fp.k_per9:.1f} K/9, last 3: {last3_str}" if fp else 'unknown'}
-- {req.dog_team} starter: {f"{dp.name}, {dp.era:.2f} ERA, {dp.k_per9:.1f} K/9" if dp else 'unknown'}
-- {req.fav_team} lineup OPS: {req.fav_ops:.3f}
-- {req.fav_team} bullpen ERA: {req.fav_bullpen_era:.2f} vs {req.dog_team} bullpen ERA: {req.dog_bullpen_era:.2f}
-- Park factor: {req.park_factor:.2f} ({req.park_notes})
-- Weather: {req.weather}
-
-Rules:
-- ONLY reference the top 3 factors listed above. Do not mention any other factors.
-- Use the specific numbers from factor_details and additional data.
-- Every rationale must be completely unique — reference the exact numbers provided.
-- Explain why this bet wins TODAY specifically.
-- Do NOT use the words "edge" or "value".
-- Do NOT start with the team name.
-- Be assertive and specific. No hedging.
-- 2-3 sentences only."""
+INSTRUCTIONS:
+- Read ALL the data above. Find the single most decisive factor for THIS specific pick.
+- If the bullpen gap is the biggest number, lead with bullpen. If lineup OPS + barrel rate stands out, lead with offense. If weather is extreme, lead with weather. If pitching clearly dominates, lead with pitching. If park factor is extreme (>1.15 or <0.90), lead with park.
+- Reference at least 3 specific numeric values from the data package.
+- Every rationale must be structurally different from a generic pitching comparison.
+- BANNED phrases: 'clear pitching mismatch', 'significantly sharper', 'edge reflects', 'this is a clear', 'edge exists', 'value here'
+- Do NOT start the sentence with the team name.
+- Do NOT use the words 'edge' or 'value'.
+- Be assertive. No hedging. 2-3 sentences max."""
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -132,15 +188,15 @@ Rules:
                 },
                 json={
                     "model": "claude-haiku-4-5",
-                    "max_tokens": 200,
+                    "max_tokens": 220,
                     "messages": [{"role": "user", "content": prompt}],
                 },
             )
-        if resp.status_code == 200:
-            data = resp.json()
-            text = data.get("content", [{}])[0].get("text", "").strip()
-            if text:
-                return {"rationale": text}
+            if resp.status_code == 200:
+                data = resp.json()
+                text = data.get("content", [{}])[0].get("text", "").strip()
+                if text:
+                    return {"rationale": text}
     except Exception:
         pass
 
