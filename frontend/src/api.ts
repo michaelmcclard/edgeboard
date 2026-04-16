@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { generateBatterProps } from './batterProps';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -973,7 +974,8 @@ export const api = {
     ]);
     const mlbBets = await generateMLBFullCards(mlbGames);
     const nhlBets = generateNHLFullCards(nhlGames);
-    const allBetsResult = [...mlbBets, ...nbaBets, ...nhlBets]; cacheBestBetsLocal(allBetsResult); return allBetsResult;
+        const batterProps = await generateBatterProps(mlbGames);
+    const allBetsResult = [...mlbBets, ...nbaBets, ...nhlBets, ...batterProps]; cacheBestBetsLocal(allBetsResult); return allBetsResult;
   },
   cachedBestBets: (): BestBet[] => getCachedBestBets(),     lines: async (gameId: string): Promise<LineMovement[]> => {
     const { data } = await supabase.from('lines').select('*').eq('game_id', gameId).order('recorded_at');
