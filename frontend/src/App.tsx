@@ -298,7 +298,7 @@ function generateSynopsis(b: BestBet): string {
   }
 
   // Fallback
-  return b.rationale.length > 200 ? b.rationale.substring(0, 200) + '...' : b.rationale;
+  return b.rationale;
 }
 
 interface PowerParlay {
