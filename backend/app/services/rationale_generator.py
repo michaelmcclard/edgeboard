@@ -120,7 +120,7 @@ def _anthropic_rationale(pick):
         )
 
         message = client.messages.create(
-            model="claude-opus-4-5",
+            model="claude-haiku-4-5",
             max_tokens=180,
             messages=[{"role": "user", "content": prompt}],
         )
