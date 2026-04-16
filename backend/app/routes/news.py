@@ -3,15 +3,82 @@ from datetime import datetime
 
 router = APIRouter()
 
+# April 16, 2026 — Real MLB betting news and injury updates
 MOCK_NEWS = [
-    {"id": "n1", "headline": "Curry listed as questionable with ankle soreness ahead of Lakers matchup", "source": "ESPN", "url": "#", "tags": ["Injury", "NBA"], "fetched_at": datetime.utcnow().isoformat(), "sport": "NBA"},
-    {"id": "n2", "headline": "Giannis upgrades to probable, expected to play vs Celtics", "source": "The Athletic", "url": "#", "tags": ["Injury", "NBA"], "fetched_at": datetime.utcnow().isoformat(), "sport": "NBA"},
-    {"id": "n3", "headline": "Yankees-Red Sox line moves from -2.5 to -3.5 on sharp action", "source": "Action Network", "url": "#", "tags": ["Line Move", "MLB"], "fetched_at": datetime.utcnow().isoformat(), "sport": "MLB"},
-    {"id": "n4", "headline": "Blues activate top defenseman from IR ahead of Blackhawks game", "source": "NHL.com", "url": "#", "tags": ["Roster", "NHL"], "fetched_at": datetime.utcnow().isoformat(), "sport": "NHL"},
-    {"id": "n5", "headline": "LAFC travel squad confirmed: full strength for road trip", "source": "MLS Soccer", "url": "#", "tags": ["Roster", "MLS"], "fetched_at": datetime.utcnow().isoformat(), "sport": "MLS"},
-    {"id": "n6", "headline": "Public hammering Lakers spread; sharps on Warriors side", "source": "VSiN", "url": "#", "tags": ["Line Move", "NBA"], "fetched_at": datetime.utcnow().isoformat(), "sport": "NBA"},
-    {"id": "n7", "headline": "Wind advisory issued for Yankee Stadium: gusts up to 20 mph", "source": "Weather Channel", "url": "#", "tags": ["General", "MLB"], "fetched_at": datetime.utcnow().isoformat(), "sport": "MLB"},
+    {
+        "id": "n1",
+        "sport": "MLB",
+        "headline": "Luis Castillo ERA sits at 6.92 entering Padres start — sharp money hitting San Diego",
+        "source": "RotoWire",
+        "url": "https://www.rotowire.com/baseball/article/mlb-best-bets-single-game-odds-and-picks-for-thursday-april-16-111453",
+        "tags": ["Mariners", "Padres", "pitching", "line move"],
+        "published_at": "2026-04-16T14:00:00Z"
+    },
+    {
+        "id": "n2",
+        "sport": "MLB",
+        "headline": "Royals-Tigers game in Detroit facing 100% rain forecast — postponement likely",
+        "source": "RotoWire Weather",
+        "url": "https://www.rotowire.com/baseball/weather.php",
+        "tags": ["Tigers", "Royals", "weather", "postponement"],
+        "published_at": "2026-04-16T10:00:00Z"
+    },
+    {
+        "id": "n3",
+        "sport": "MLB",
+        "headline": "Yankees ML (-292) vs Angels: Gerrit Cole vs Tyler Anderson — experts backing New York run line",
+        "source": "ProCappers",
+        "url": "https://procappers.com/article/mlb-best-bets-today-top-5-free-picks-and-expert-predictions-for-april-16-2026",
+        "tags": ["Yankees", "Angels", "best bet"],
+        "published_at": "2026-04-16T09:00:00Z"
+    },
+    {
+        "id": "n4",
+        "sport": "MLB",
+        "headline": "Phillies -1.5 (+152) vs Cubs: Sanchez on mound, plus-money run line value identified",
+        "source": "Reddit MLBPicksAI",
+        "url": "https://www.reddit.com/r/MLBPicksAI/comments/1skv8t4/",
+        "tags": ["Phillies", "Cubs", "run line", "value"],
+        "published_at": "2026-04-16T08:30:00Z"
+    },
+    {
+        "id": "n5",
+        "sport": "MLB",
+        "headline": "Astros -1.5 (+110) vs Rockies: Houston heavily favored, Freeland ERA at 5.91 on road",
+        "source": "ProCappers",
+        "url": "https://procappers.com/article/mlb-best-bets-today-top-5-free-picks-and-expert-predictions-for-april-16-2026",
+        "tags": ["Astros", "Rockies", "run line"],
+        "published_at": "2026-04-16T09:30:00Z"
+    },
+    {
+        "id": "n6",
+        "sport": "MLB",
+        "headline": "Dodgers -1.5 (+112) vs Mets: Yamamoto vs Peterson — model flags plus-money run line on LA",
+        "source": "Reddit MLBPicksAI",
+        "url": "https://www.reddit.com/r/MLBPicksAI/comments/1skv8t4/",
+        "tags": ["Dodgers", "Mets", "run line", "best bet"],
+        "published_at": "2026-04-16T08:00:00Z"
+    },
+    {
+        "id": "n7",
+        "sport": "MLB",
+        "headline": "Guardians vs Orioles tonight: VSiN notes influential sharp money on both sides — steam alert active",
+        "source": "VSiN",
+        "url": "https://vsin.com/mlb/mlb-best-bets-today-adam-burkes-picks-for-thursday-april-16/",
+        "tags": ["Guardians", "Orioles", "sharp money", "steam"],
+        "published_at": "2026-04-16T11:00:00Z"
+    },
+    {
+        "id": "n8",
+        "sport": "MLB",
+        "headline": "Padres Over 8.5 correlated with home dog play — both Castillo and Buehler off to slow starts",
+        "source": "RotoWire",
+        "url": "https://www.rotowire.com/baseball/article/mlb-best-bets-single-game-odds-and-picks-for-thursday-april-16-111453",
+        "tags": ["Padres", "Mariners", "over", "totals"],
+        "published_at": "2026-04-16T13:00:00Z"
+    },
 ]
+
 
 @router.get("/feed")
 def news_feed(sport: str | None = None):
